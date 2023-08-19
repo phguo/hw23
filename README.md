@@ -4,8 +4,10 @@ This repository is a solution algorithm based on Mathematical Programming for [è
 
 ## Dependencies
 ```
-python==3.7
-numpy==1.21.6
+python==3.7.0
+ply==3.11
 pyomo==6.6.0
 highspy==1.5.3
+ortools==9.5.2237
+networkx==2.6.3
 ```

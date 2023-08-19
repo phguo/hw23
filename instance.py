@@ -9,6 +9,7 @@ from config import INSTANCES
 from utility import load_json
 
 import networkx as nx
+from toposort import toposort
 
 
 class Station(object):
@@ -80,6 +81,7 @@ class Instance(object):
         self.get_stations_with_unmovable_machine()
 
         self.task_tp_order = self.topological_ordering()
+        self.task_tp_order_set = self.topological_ordering_set()
 
     def __str__(self):
         n = f"|P|={self.process_num}, |S|={self.station_num}, |W|={self.worker_num}, MC={self.max_cycle_count}, " \
@@ -92,6 +94,15 @@ class Instance(object):
         G.add_edges_from(self.immediate_precedence)
         topological_order = list(nx.topological_sort(G))
         return topological_order
+
+    def topological_ordering_set(self):
+        dep = dict()
+        for p in self.processes:
+            dep[p] = set()
+            for p1, p2 in self.immediate_precedence:
+                if p2 == p:
+                    dep[p].add(p1)
+        return list(toposort(dep))
 
     def make_aux_machines(self):
         self.aux_machine_list = []
@@ -256,7 +267,7 @@ if __name__ == '__main__':
         # print()
 
         # print([v.is_machine_needed for k, v in I.aux_machines.items()])
-        print(I.max_worker_per_oper, I.max_split_num)
+        # print(I.max_worker_per_oper, I.max_split_num)
 
         # # Print skill & skill category efficiency
         # for w, p in product(I.workers, I.processes):
@@ -277,20 +288,21 @@ if __name__ == '__main__':
 
         # import networkx as nx
         # import matplotlib.pyplot as plt
-        #
         # G = nx.DiGraph()
         # G.add_nodes_from(list(I.processes.keys()))
         # G.add_edges_from(I.immediate_precedence)
-        #
         # pos = nx.planar_layout(G)
-        # nx.draw_networkx(G, pos, node_color='lightblue', node_size=100, font_size=5, edge_color='k')
+        # # pos = nx.spring_layout(G)
+        # nx.draw_networkx(G, pos=pos, node_color='lightblue', node_size=200, font_size=10, edge_color='k', arrows=True)
         # ax = plt.gca()
-        # ax.margins(0.20)
+        # ax.margins(0.0)
         # plt.axis("off")
         # plt.show()
-        #
         # topological_order = list(nx.topological_sort(G))
         # print("Topological Order:", topological_order)
         # print(I.immediate_precedence)
-        #
         # break
+
+        print(I.task_tp_order_set)
+        print(I.task_tp_order)
+        print()

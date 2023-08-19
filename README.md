@@ -10,4 +10,5 @@ pyomo==6.6.0
 highspy==1.5.3
 ortools==9.5.2237
 networkx==2.6.3
+toposort==1.10
 ```

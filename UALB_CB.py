@@ -329,7 +329,7 @@ class Solver(Instance):
         # Maximum total revisit count constraint
         # DEBUG: complicating constraints -> check feasibility, and add cuts
         # HINT: how to add constraints to the master problem, such that this constraint is not likely validated
-        cp.Add(sum(cp_revisit[s] for s in self.stations) <= self.max_revisited_station_count)
+        # cp.Add(sum(cp_revisit[s] for s in self.stations) <= self.max_revisited_station_count)
 
         """
         Symmetry breaking
@@ -640,7 +640,7 @@ class Solver(Instance):
 
 if __name__ == '__main__':
     # instance_li = INSTANCES
-    instance_li = ["instance-53.txt", "instance-33.txt", "instance-21.txt"]
+    instance_li = ["instance-5.txt", "instance-43.txt", "instance-38.txt"]
 
     start_time = time.time()
     real_objectives = {}
@@ -652,7 +652,7 @@ if __name__ == '__main__':
         print(f"Solving {instance} [{instance_count}/{len(instance_li)}] ...")
         S = Solver(load_json(f"instances/{instance}"))
 
-        real_obj, worker_to_process, process_to_station, cycle_num = S.solve(cp_time_limit=15, total_time_limit=330)
+        real_obj, worker_to_process, process_to_station, cycle_num = S.solve(cp_time_limit=15, total_time_limit=120)
 
         # if S.process_num >= 60:
         #     print("METHOD: alchemy()")
@@ -665,7 +665,10 @@ if __name__ == '__main__':
         #     real_obj, worker_to_process, process_to_station, cycle_num = S.solve(cp_time_limit=15, total_time_limit=250)
 
         if real_obj != 10:
-            solution = Solution(S.instance_data, worker_to_process, process_to_station, cycle_num)
+            try:
+                solution = Solution(S.instance_data, worker_to_process, process_to_station, cycle_num)
+            except Exception as e:
+                print(e)
 
         real_objectives[instance] = real_obj
         print(f"Runtime         : {time.time() - instance_start_time} seconds")

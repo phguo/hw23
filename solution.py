@@ -22,15 +22,15 @@ class Solution(Instance):
         self.station_worker = {s: w for w, s in self.worker_to_station if self.worker_to_station[w, s] == 1}
         self.process_order = self.__make_process_order()
 
-        # a = self.all_processes_are_assigned()
-        # b = self.all_workers_are_assigned()
-        # c = self.valid_station_worker_num()
-        # d = self.valid_worker_station_num()
-        # e = self.valid_process_order()
-        # f = self.valid_revisit()
-        # self.is_feasible = a and b and c and d and e and f
+        a = self.all_processes_are_assigned()
+        b = self.all_workers_are_assigned()
+        c = self.valid_station_worker_num()
+        d = self.valid_worker_station_num()
+        e = self.valid_process_order()
+        f = self.valid_revisit()
+        self.is_feasible = a and b and c and d and e and f
 
-        # self.write_solution()
+        self.write_solution()
 
     def __make_process_order(self):
         process_order = []

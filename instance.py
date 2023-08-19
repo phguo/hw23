@@ -8,6 +8,8 @@ from itertools import product
 from config import INSTANCES
 from utility import load_json
 
+import networkx as nx
+
 
 class Station(object):
     def __init__(self, **kwargs):
@@ -36,6 +38,8 @@ class Machine(object):
 class Instance(object):
 
     def __init__(self, instance_data):
+        self.instance_data = instance_data
+
         self.station_list = instance_data["station_list"]
         self.process_list = instance_data["process_list"]
         self.worker_list = instance_data["worker_list"]
@@ -54,7 +58,8 @@ class Instance(object):
         self.max_station_per_oper = self.config_param["max_station_per_oper"]
         self.max_split_num = self.config_param["max_split_num"]
 
-        # DEBUG: station_list is not sorted by line_number -> Fixed
+        self._max_revisit_no_unmovable = 2
+
         self.station_list = sorted(self.station_list, key=lambda x: int(x["line_number"]))
         self.stations = {i + 1: Station(**s) for i, s in enumerate(self.station_list)}
         self.processes = {i + 1: Process(**p) for i, p in enumerate(self.process_list)}
@@ -74,10 +79,19 @@ class Instance(object):
         self.get_stations_fixed_aux_machines()
         self.get_stations_with_unmovable_machine()
 
+        self.task_tp_order = self.topological_ordering()
+
     def __str__(self):
         n = f"|P|={self.process_num}, |S|={self.station_num}, |W|={self.worker_num}, MC={self.max_cycle_count}, " \
             f"Ncol={self.ncol}"
         return n
+
+    def topological_ordering(self):
+        G = nx.DiGraph()
+        G.add_nodes_from(list(self.processes.keys()))
+        G.add_edges_from(self.immediate_precedence)
+        topological_order = list(nx.topological_sort(G))
+        return topological_order
 
     def make_aux_machines(self):
         self.aux_machine_list = []
@@ -104,7 +118,6 @@ class Instance(object):
         self.machine_code_to_id = {m.machine_type: i for i, m in self.aux_machines.items()}
 
     def get_immediate_precedence(self):
-        # TODO: Check if this is correct
         self.immediate_precedence = []
 
         # Get ordered parts' processes based on "operation_number"
@@ -158,6 +171,11 @@ class Instance(object):
             p for p in self.processes if sum(self.skill_capable[(w, p)] for w in self.workers) >= 1)
         self.pros_have_no_capable_skill_workers = set(self.processes.keys()) - self.pros_have_capable_skill_workers
 
+        self.pros_skill_capable_workers = {
+            p: {w for w in self.workers if self.skill_capable[(w, p)] == 1} for p in self.processes}
+        self.pros_category_capable_workers = {
+            p: {w for w in self.workers if self.category_capable[(w, p)] == 1} for p in self.processes}
+
     def get_processes_aux_machine(self):
         self.processes_required_machine = dict()
         for p, process in self.processes.items():
@@ -178,6 +196,11 @@ class Instance(object):
                             assert len(self.stations_fixed_machines[s]) == 1
         self.stations_fixed_machine = {k: v[0] if v else None for k, v in self.stations_fixed_machines.items()}
 
+        self.fixed_machines = set()
+        for v in self.stations_fixed_machine.values():
+            if v:
+                self.fixed_machines.add(v)
+
     def get_mono_aux_machines(self):
         self.mono_aux_machines = [k for k, m in self.aux_machines.items() if m.is_mono]
 
@@ -193,10 +216,81 @@ class Instance(object):
         self.stations_with_unmovable_machine = stations_with_unmovable_machine
         self.station_with_no_unmovable_machine = set(self.stations) - set(self.stations_with_unmovable_machine.keys())
 
+    def _get_worker_capable_process(self, w):
+        res = self.workers_capble_pro[w].union(self.workers_category_capable_pro[w])
+        return res
+
+    def _get_efficiency(self, w, p):
+        if p in self.workers_capble_pro[w]:
+            for skill in self.workers[w].operation_skill_list:
+                if skill["operation_code"] == self.processes[p].operation:
+                    return skill["efficiency"]
+        elif p in self.workers_category_capable_pro[w]:
+            for category in self.workers[w].operation_category_skill_list:
+                if category["operation_category"] == self.processes[p].operation_category:
+                    return category["efficiency"]
+        else:
+            raise Exception(
+                f"Process '{p}' in neither pros_have_capable_skill_workers nor pros_have_no_capable_skill_workers")
+
 
 if __name__ == '__main__':
     # I = Instance(load_json("instances/instance-6.txt"))
 
     for instance in INSTANCES:
+        print("Loading instance:", instance)
         I = Instance(load_json(f"./instances/{instance}"))
-        print(instance, I.max_revisited_station_count, I.max_cycle_count)
+        # operation_time_li = [p.standard_oper_time for p in I.processes.values()]
+        # print(instance, min(operation_time_li), max(operation_time_li), sum(operation_time_li) / len(operation_time_li))
+
+        # print("max_revisits =", I.max_revisited_station_count, "| max_cycle =", I.max_cycle_count)
+        # print("mono_machines", I.mono_aux_machines)
+        # stations_fixed_machines = {k: v for k, v in I.stations_fixed_machines.items() if v}
+        # print("stations_fixed_machines", stations_fixed_machines)
+        # processes_required_mono_machine = {k: v for k, v in I.processes_required_machine.items() if
+        #                                    v in I.mono_aux_machines}
+        # print("processes_required_mono_machine", processes_required_mono_machine)
+        # print(I.immediate_precedence)
+        # print(I.task_tp_order)
+        # print(I.volatility_rate)
+        # print()
+
+        # print([v.is_machine_needed for k, v in I.aux_machines.items()])
+        print(I.max_worker_per_oper, I.max_split_num)
+
+        # # Print skill & skill category efficiency
+        # for w, p in product(I.workers, I.processes):
+        #     skill_efficiency = None
+        #     category_efficiency = None
+        #     if p in I.workers_capble_pro[w]:
+        #         for skill in I.workers[w].operation_skill_list:
+        #             if skill["operation_code"] == I.processes[p].operation:
+        #                 skill_efficiency = skill["efficiency"]
+        #     elif p in I.workers_category_capable_pro[w]:
+        #         for category in I.workers[w].operation_category_skill_list:
+        #             if category["operation_category"] == I.processes[p].operation_category:
+        #                 category_efficiency = category["efficiency"]
+        #     if skill_efficiency or category_efficiency:
+        #         print(w, p, skill_efficiency, category_efficiency)
+        #         assert skill_efficiency is None or category_efficiency is None
+        # print()
+
+        # import networkx as nx
+        # import matplotlib.pyplot as plt
+        #
+        # G = nx.DiGraph()
+        # G.add_nodes_from(list(I.processes.keys()))
+        # G.add_edges_from(I.immediate_precedence)
+        #
+        # pos = nx.planar_layout(G)
+        # nx.draw_networkx(G, pos, node_color='lightblue', node_size=100, font_size=5, edge_color='k')
+        # ax = plt.gca()
+        # ax.margins(0.20)
+        # plt.axis("off")
+        # plt.show()
+        #
+        # topological_order = list(nx.topological_sort(G))
+        # print("Topological Order:", topological_order)
+        # print(I.immediate_precedence)
+        #
+        # break

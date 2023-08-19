@@ -1,5 +1,5 @@
-instances/
-solutions/
+instances/*.txt
+solutions/*.txt
 *.whl
 /backup
 customize_service.py

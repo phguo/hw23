@@ -427,7 +427,7 @@ class Solver(Instance):
             self.model,
             tee=True,
             # validate=False
-            timelimit=300,
+            timelimit=300000,
             # logfile="solver.log",
         )
 

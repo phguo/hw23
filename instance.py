@@ -178,8 +178,10 @@ class Instance(object):
             (w, p): 1 if p in self.workers_category_capable_pro[w] else 0
             for w, p in product(self.workers, self.processes)}
 
-        self.pros_have_capable_skill_workers = set(
-            p for p in self.processes if sum(self.skill_capable[(w, p)] for w in self.workers) >= 1)
+        self.pros_have_capable_skill_workers = set()
+        for p, w in product(self.processes, self.workers):
+            if self.skill_capable[(w, p)] == 1:
+                self.pros_have_capable_skill_workers.add(p)
         self.pros_have_no_capable_skill_workers = set(self.processes.keys()) - self.pros_have_capable_skill_workers
 
         self.pros_skill_capable_workers = {
@@ -232,6 +234,7 @@ class Instance(object):
         return res
 
     def _get_efficiency(self, w, p):
+        # DEBUG: instance-50 is inherently infeasible without splitting?
         if p in self.workers_capble_pro[w]:
             for skill in self.workers[w].operation_skill_list:
                 if skill["operation_code"] == self.processes[p].operation:
@@ -246,9 +249,10 @@ class Instance(object):
 
 
 if __name__ == '__main__':
-    # I = Instance(load_json("instances/instance-6.txt"))
+    instance_li = INSTANCES
+    # instance_li = ["instance-50.txt"]
 
-    for instance in INSTANCES:
+    for instance in instance_li:
         print("Loading instance:", instance)
         I = Instance(load_json(f"./instances/{instance}"))
         # operation_time_li = [p.standard_oper_time for p in I.processes.values()]
@@ -303,6 +307,12 @@ if __name__ == '__main__':
         # print(I.immediate_precedence)
         # break
 
-        print(I.task_tp_order_set)
-        print(I.task_tp_order)
+        print("task_tp_order_set", I.task_tp_order_set)
+        print("task_tp_set", I.task_tp_order)
+        print("max_worker_per_oper:", I.max_worker_per_oper)
+        print("max_station_per_oper:", I.max_station_per_oper)
+        print("max_split_num:", I.max_split_num)
+
+        # print(I.upph_weight, I.volatility_weight)
+
         print()

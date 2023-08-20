@@ -13,12 +13,18 @@ from config import INSTANCES
 from solution import Solution
 from utility import load_json
 
+optimizer = pyo.SolverFactory('appsi_highs')
+
+
+# optimizer = pyo.SolverFactory('gurobi')
+# optimizer.options["MIPFocus"] = 1
 
 class Solver(Instance):
     def __init__(self, instance_data):
         super().__init__(instance_data)
 
     def make_master_problem(self, split_task=False, obj_weight=(1, 0, 0), shrink=(0, 0)):
+        # TODO: make an CP equivalent of this MIP model
         model = pyo.ConcreteModel()
 
         model.worker_to_process = pyo.Set(initialize=product(self.workers, self.processes))
@@ -30,6 +36,8 @@ class Solver(Instance):
             self.processes,
             rule=lambda m, p:
             sum(m.assign_worker_to_process_vars[w, p] for w in self.workers) == 1)
+
+        # TODO: splitting tasks, RHS becomes >= 1
 
         # Maximum worker per operation
         model.max_worker_per_operation_cons = pyo.Constraint(
@@ -51,11 +59,16 @@ class Solver(Instance):
                      self.skill_capable[(w, p)] + self.category_capable[(w, p)])
 
         # Must assign processes that have capable-skill workers to at least one of them
-        model.worker_skill_capable_b_cons = pyo.Constraint(
-            self.pros_have_capable_skill_workers,
-            rule=lambda m, p:
-            sum(m.assign_worker_to_process_vars[w, p] for w in
-                set(ww for ww in self.workers if self.skill_capable[(ww, p)] == 1)) == 1)
+        # model.worker_skill_capable_b_cons = pyo.Constraint(
+        #     self.pros_have_capable_skill_workers,
+        #     rule=lambda m, p:
+        #     sum(m.assign_worker_to_process_vars[w, p] for w in
+        #         set(ww for ww in self.workers if self.skill_capable[(ww, p)] == 1)) == 1)
+        # DEBUG: instance-50 is inherently infeasible without splitting?
+        model.worker_skill_capable_b_cons = pyo.ConstraintList()
+        for p in self.pros_have_capable_skill_workers:
+            model.worker_skill_capable_b_cons.add(
+                expr=sum(model.assign_worker_to_process_vars[w, p] for w in self.pros_skill_capable_workers[p]) == 1)
 
         # Fix worker to processes
         model.fix_worker_cons = pyo.ConstraintList()
@@ -66,15 +79,17 @@ class Solver(Instance):
                 for w_ in set(self.workers.keys()) - {w}:
                     model.fix_worker_cons.add(expr=model.assign_worker_to_process_vars[w_, p] == 0)
 
-        model.workload_vars = pyo.Var(self.workers, domain=pyo.NonNegativeReals, initialize=0)
-
         # Define workload without splitting process
+        model.workload_vars = pyo.Var(self.workers, domain=pyo.NonNegativeReals, initialize=0)
+        # DEBUG: instance-50 is inherently infeasible without splitting?
         model.def_workload_cons = pyo.Constraint(
             self.workers,
             rule=lambda m, w:
             m.workload_vars[w] == sum(
-                self.processes[p].standard_oper_time * m.assign_worker_to_process_vars[w, p]
-                / self._get_efficiency(w, p) for p in self._get_worker_capable_process(w)))
+                self.processes[p].standard_oper_time / self._get_efficiency(w, p)
+                * m.assign_worker_to_process_vars[w, p] for p in self._get_worker_capable_process(w)))
+
+        # TODO: workload when allow splitting tasks
 
         # Mean workload constraint
         model.mean_workload_var = pyo.Var(domain=pyo.NonNegativeReals, initialize=0)
@@ -87,89 +102,117 @@ class Solver(Instance):
             self.workers, rule=lambda m, w: m.max_workload_var >= m.workload_vars[w])
 
         # Workload volatility_rate constraint
+        # DEBUG: instance-50 is inherently infeasible without splitting?
         model.workload_volatility_a_cons = pyo.Constraint(
             self.workers,
             rule=lambda m, w:
-            m.workload_vars[w] <= m.mean_workload_var * (1 - shrink[0] + self.volatility_rate))
+            m.workload_vars[w] <= m.mean_workload_var * (1 + self.volatility_rate - shrink[0]))
         model.workload_volatility_b_cons = pyo.Constraint(
             self.workers,
             rule=lambda m, w:
-            m.workload_vars[w] >= m.mean_workload_var * (1 + shrink[1] - self.volatility_rate))
+            m.workload_vars[w] >= m.mean_workload_var * (1 - self.volatility_rate + shrink[1]))
 
         # Objective
-        # HINT: learn a weighted proxy objective for the target objective, but upload later
+        # model.objective = pyo.Objective(
+        #     expr=obj_weight[0] * model.max_workload_var
+        #          + obj_weight[1] * model.mean_workload_var
+        #          + obj_weight[2] * 0,
+        #     sense=pyo.minimize)
+
+        # HINT: learn a weighted proxy objective, but upload later, tsangConvexFairnessMeasures2022
+
+        # Objective: Gini deviation -> slower
+        model.abs_obj_vars = pyo.Var(
+            list(product(self.workers, self.workers)), domain=pyo.NonNegativeReals, initialize=0)
+        model.abs_obj_cons = pyo.ConstraintList()
+        for w1, w2 in product(self.workers, self.workers):
+            model.abs_obj_cons.add(
+                expr=model.abs_obj_vars[w1, w2] >= model.workload_vars[w1] - model.workload_vars[w2])
+            model.abs_obj_cons.add(
+                expr=model.abs_obj_vars[w1, w2] >= model.workload_vars[w2] - model.workload_vars[w1])
+            model.abs_obj_cons.add(
+                expr=model.abs_obj_vars[w1, w2] >= 0)
         model.objective = pyo.Objective(
-            expr=obj_weight[0] * model.max_workload_var + obj_weight[1] * model.mean_workload_var + obj_weight[2] * 0,
+            expr=sum(model.abs_obj_vars[w1, w2] for w1, w2 in product(self.workers, self.workers)),
             sense=pyo.minimize)
-        # HINT: accelerate instance-5.txt and instance-43.txt, with self.max_cycle_count = 2
-        # model.objective = pyo.Objective(expr=0, sense=pyo.minimize)
+
+        # HINT: Charnes-Cooper transformation for the original fractional objective
 
         # Initialize an empty ConstraintList for Combinatorial Benders (CB) cuts
         model.cb_cuts = pyo.ConstraintList()
         # Initialize an empty ConstraintList for Local Branching cuts
         model.local_branching_cuts = pyo.ConstraintList()
 
-        # HINT: heuristics for the master problem -> more likely to be feasible
-        # HINT: add a cut based on cycle number estimation
-        # TODO: add a subproblem relaxation to the master problem -> more likely to be feasible
-        # model.process_to_station = pyo.Set(initialize=product(self.processes, self.ext_stations))
-        # model.worker_to_station = pyo.Set(initialize=product(self.workers, self.stations))
-        # model.worker_pro_sta = pyo.Set(initialize=product(self.workers, self.processes, self.ext_stations))
-        # model.assign_process_to_station_vars = pyo.Var(model.process_to_station, domain=pyo.Binary, initialize=0)
-        # model.assign_worker_to_station_vars = pyo.Var(model.worker_to_station, domain=pyo.Binary, initialize=0)
-        # model.assign_worker_process_station_vars = pyo.Var(model.worker_pro_sta, domain=pyo.Binary, initialize=0)
-        # # Link p-s with w-p-s
-        # model.process_to_station_a_cons = pyo.Constraint(
-        #     model.process_to_station,
-        #     rule=lambda m, p, s:
-        #     m.assign_process_to_station_vars[p, s]
-        #     == sum(m.assign_worker_process_station_vars[w, p, s] for w in self.workers))
-        # # Link p-s with w-p-s, process cannot be done by different workers at same station
-        # model.process_to_station_c_cons = pyo.Constraint(
-        #     model.process_to_station,
-        #     rule=lambda m, p, s:
-        #     sum(m.assign_worker_process_station_vars[w, p, s] for w in self.workers) <= 1)
-        # # Link w-s with w-p-s
-        # model.worker_to_station_cons = pyo.Constraint(
-        #     model.worker_to_station,
-        #     rule=lambda m, w, s:
-        #     m.assign_worker_to_station_vars[w, s]
-        #     >= sum(m.assign_worker_process_station_vars[w, p, ss] for p in self.processes
-        #            for ss in self.__get_dummy_stations(s))
-        #     / self.max_cycle_count / self.process_num)
-        # model.worker_to_station_b_cons = pyo.Constraint(
-        #     model.worker_to_station,
-        #     rule=lambda m, w, s:
-        #     m.assign_worker_to_station_vars[w, s]
-        #     <= sum(m.assign_worker_process_station_vars[w, p, ss] for p in self.processes
-        #            for ss in self.__get_dummy_stations(s)))
-        # # Link w-p with w-p-s
-        # model.worker_to_process_cons = pyo.Constraint(
-        #     model.worker_to_process,
-        #     rule=lambda m, w, p:
-        #     m.assign_worker_to_process_vars[w, p]
-        #     == sum(m.assign_worker_process_station_vars[w, p, ss] for ss in self.ext_stations))
-        # # Link w-p with w-p-s, Worker cannot do same process at different station
-        # model.worker_to_process_c_cons = pyo.Constraint(
-        #     model.worker_to_process,
-        #     rule=lambda m, w, p:
-        #     sum(m.assign_worker_process_station_vars[w, p, ss] for ss in self.ext_stations) <= 1)
-        # # Immediate precedence constraints
-        # model.precedence_cons = pyo.ConstraintList()
-        # for p1, p2 in self.immediate_precedence:
-        #     model.precedence_cons.add(
-        #         expr=sum(s * model.assign_process_to_station_vars[(p1, s)] for s in self.ext_stations) <=
-        #              sum(s * model.assign_process_to_station_vars[(p2, s)] for s in self.ext_stations))
-        # # Each station has no more than one worker
-        # model.station_worker_cons = pyo.Constraint(
-        #     self.stations,
-        #     rule=lambda m, s:
-        #     sum(m.assign_worker_to_station_vars[w, s] for w in self.workers) <= 1)
-        # # Maximum number of stations for each worker
-        # model.worker_max_stations_cons = pyo.Constraint(
-        #     self.workers,
-        #     rule=lambda m, w:
-        #     sum(m.assign_worker_to_station_vars[w, s] for s in self.stations) <= self.max_station_per_worker)
+        # DEBUG: invalid & numerically unstable
+        # model = self.add_sub_relaxation_to_master(model)
+
+        return model
+
+    def add_sub_relaxation_to_master(self, model):
+        # NOTICE: is not significant on the test instances
+
+        model.process_worker_id_vars = pyo.Var(
+            self.processes, domain=pyo.NonNegativeIntegers, initialize=0)
+        model.same_worker_vars = pyo.Var(
+            list(product(self.processes, self.processes)), domain=pyo.Binary, initialize=0)
+        model.delta_vars = pyo.Var(
+            list(product(self.processes, self.processes)), domain=pyo.Binary, initialize=0)
+        model.new_station_vars = pyo.Var(
+            self.processes, domain=pyo.Binary, initialize=0)
+
+        process_pre_set = {p: set() for p in self.processes}
+        for i, pros in enumerate(self.task_tp_order_set):
+            if i > 0:
+                for p in pros:
+                    process_pre_set[p] |= self.task_tp_order_set[i - 1]
+
+        process_pre_in = {p: [] for p in self.processes}
+        for i, pros in enumerate(self.task_tp_order_set):
+            pros_ = list(pros)
+            for j, p in enumerate(pros_):
+                if j > 0:
+                    process_pre_in[p] = pros_[:j]
+
+        model.worker_id_cons = pyo.Constraint(
+            self.processes,
+            rule=lambda m, p:
+            m.process_worker_id_vars[p] == sum(w * m.assign_worker_to_process_vars[w, p] for w in self.workers))
+        big_m = self.process_num * 100
+
+        # Enforce if a = b then c = 1, https://stackoverflow.com/a/68853298
+        model.same_id_a_cons = pyo.Constraint(
+            list(product(self.processes, self.processes)),
+            rule=lambda m, p1, p2:
+            m.process_worker_id_vars[p1] >=
+            m.process_worker_id_vars[p2] + 1 - big_m * m.delta_vars[p1, p2] - big_m * m.same_worker_vars[p1, p2])
+        model.same_id_b_cons = pyo.Constraint(
+            list(product(self.processes, self.processes)),
+            rule=lambda m, p1, p2:
+            m.process_worker_id_vars[p1] <=
+            m.process_worker_id_vars[p2] - 1 + big_m * (1 - m.delta_vars[p1, p2]) + big_m * m.same_worker_vars[p1, p2])
+        # Enforce if a != b then c = 0 <=> if c = 1 then a == b
+        model.same_id_d_cons = pyo.Constraint(
+            list(product(self.processes, self.processes)),
+            rule=lambda m, p1, p2:
+            big_m * (1 - m.same_worker_vars[p1, p2]) + m.process_worker_id_vars[p1] >= m.process_worker_id_vars[p2])
+        model.same_id_e_cons = pyo.Constraint(
+            list(product(self.processes, self.processes)),
+            rule=lambda m, p1, p2:
+            m.process_worker_id_vars[p1] <= m.process_worker_id_vars[p2] + big_m * (1 - m.same_worker_vars[p1, p2]))
+
+        # HINT: can be invalid, e.g., instance-31
+        model.new_station_cons = pyo.ConstraintList()
+        for p in self.processes:
+            if process_pre_set[p] != set():
+                model.new_station_cons.add(
+                    model.new_station_vars[p]
+                    + sum(model.same_worker_vars[p, p_] for p_ in process_pre_set[p])
+                    + sum(model.same_worker_vars[p, p_] for p_ in process_pre_in[p])
+                    >= 1)
+
+        model.new_station_ub_cons = pyo.Constraint(
+            expr=sum(model.new_station_vars[p] for p in self.processes) <=
+                 self.station_num + self.max_revisited_station_count)
 
         return model
 
@@ -228,23 +271,29 @@ class Solver(Instance):
             cp.Add(sum(cp_process_to_station[(p, s)] for s in ext_stations) == 1)
 
         # Precedence constraints
-        # DEBUG: complicating constraints
-        # for p1, p2 in self.immediate_precedence:
-        #     cp.Add(sum(s * cp_process_to_station[(p1, s)] for s in ext_stations) <=
-        #            sum(s * cp_process_to_station[(p2, s)] for s in ext_stations))
-        # Alternative (from https://github.com/google/or-tools/blob/stable/examples/python/line_balancing_sat.py)
-        possible = {
-            (p, s): cp.NewBoolVar('p_{}_s_{}'.format(p, s))
-            for p, s in product(self.processes, ext_stations)}
-        for p, s in product(self.processes, list(ext_stations.keys())[:-1]):
-            cp.AddImplication(possible[(p, s)], possible[(p, s + 1)])
-        for p, s in product(self.processes, ext_stations):
-            cp.AddImplication(cp_process_to_station[(p, s)], possible[(p, s)])
-        for p, s in product(self.processes, list(ext_stations.keys())[1:]):
-            cp.AddImplication(cp_process_to_station[(p, s)], possible[(p, s - 1)].Not())
+        # NOTICE: complicating constraints
         for p1, p2 in self.immediate_precedence:
-            for s in list(ext_stations.keys())[1:]:
-                cp.AddImplication(cp_process_to_station[p1, s], possible[p2, s - 1].Not())
+            cp.Add(sum(s * cp_process_to_station[(p1, s)] for s in ext_stations) <=
+                   sum(s * cp_process_to_station[(p2, s)] for s in ext_stations))
+        # Alternative, slower
+        # https://github.com/google/or-tools/blob/stable/examples/python/line_balancing_sat.py
+        # possible = {
+        #     (p, s): cp.NewBoolVar('p_{}_s_{}'.format(p, s))
+        #     for p, s in product(self.processes, ext_stations)}
+        # for p, s in product(self.processes, list(ext_stations.keys())[:-1]):
+        #     cp.AddImplication(possible[(p, s)], possible[(p, s + 1)])
+        # for p, s in product(self.processes, ext_stations):
+        #     cp.AddImplication(cp_process_to_station[(p, s)], possible[(p, s)])
+        # for p, s in product(self.processes, list(ext_stations.keys())[1:]):
+        #     cp.AddImplication(cp_process_to_station[(p, s)], possible[(p, s - 1)].Not())
+        # for p1, p2 in self.immediate_precedence:
+        #     for s in list(ext_stations.keys())[1:]:
+        #         cp.AddImplication(cp_process_to_station[p1, s], possible[p2, s - 1].Not())
+        # Another alternative, slower
+        # for p1, p2 in self.immediate_precedence:
+        #     for i in range(len(ext_stations)):
+        #         cp.Add(sum(cp_process_to_station[(p1, s)] for s in list(ext_stations.keys())[:i + 1]) >=
+        #                sum(cp_process_to_station[(p2, s)] for s in list(ext_stations.keys())[:i + 1]))
 
         """
         人员规则约束
@@ -297,7 +346,7 @@ class Solver(Instance):
         """
         工位规则约束
         """
-        # DEBUG: complicating constraints
+        # NOTICE: complicating constraints
         # Each station has no more than one worker
         for s in self.stations:
             cp.Add(sum(cp_worker_to_station[(w, s)] for w in self.workers) <= 1)
@@ -327,9 +376,8 @@ class Solver(Instance):
             cp.Add(cp_revisit[s] <= self._max_revisit_no_unmovable)
 
         # Maximum total revisit count constraint
-        # DEBUG: complicating constraints -> check feasibility, and add cuts
-        # HINT: how to add constraints to the master problem, such that this constraint is not likely validated
-        # cp.Add(sum(cp_revisit[s] for s in self.stations) <= self.max_revisited_station_count)
+        # NOTICE: complicating constraints -> check feasibility, and add cuts (?)
+        cp.Add(sum(cp_revisit[s] for s in self.stations) <= self.max_revisited_station_count)
 
         """
         Symmetry breaking
@@ -349,6 +397,7 @@ class Solver(Instance):
         return cp, cp_process_to_station
 
     def fast_detect_revisit(self, worker_to_process):
+        # HINT: modifying, see calc_station_lb
         min_required_station_num = 1
         process_to_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
         wp_set = set()
@@ -365,6 +414,7 @@ class Solver(Instance):
         return True, wp_set, min_required_station_num
 
     def fast_detect_cycle(self, worker_to_process):
+        # HINT: modifying, see calc_station_lb
         station_used = 1
         process_to_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
         wp_set = set()
@@ -380,25 +430,22 @@ class Solver(Instance):
                     return False, wp_set, station_used // self.station_num + 1
         return True, wp_set, station_used // self.station_num + 1
 
-    def estimate_cycle(self, worker_to_process):
-        station_used = 1
-        process_to_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
-        processes_required_mono_machine = {
-            k: v for k, v in self.processes_required_machine.items() if v in self.mono_aux_machines}
-        # print("processes_required_mono_machine", processes_required_mono_machine)
+    def calc_station_lb(self, worker_to_process):
+        process_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
 
-        for p1, p2 in self.immediate_precedence:
-            p1_w = process_to_worker[p1]
-            p2_w = process_to_worker[p2]
-            if p1_w != p2_w:
-                station_used += 1
-            else:
-                if p1 in processes_required_mono_machine and p2 in processes_required_mono_machine:
-                    if processes_required_mono_machine[p1] != processes_required_mono_machine[p2]:
-                        station_used += 1
-        cycle = station_used // self.station_num + 1
-        print("station |" + f" used={station_used}, have={self.station_num}, cycle={cycle}")
-        return cycle
+        required_station_num = 0
+        worker_set_before = set()
+        for i, pros in enumerate(self.task_tp_order_set):
+            worker_set = {process_worker[p] for p in pros}
+            for w in worker_set:
+                if w not in worker_set_before:
+                    required_station_num += 1
+            worker_set_before = worker_set
+
+        feasible_possibility = required_station_num <= self.station_num + self.max_revisited_station_count
+        # print("required_station_num:", required_station_num, "// station_num:", self.station_num,
+        #       "// allowed revisit:", self.max_revisited_station_count, "// feasible possibility:", feasible_possibility)
+        return required_station_num, feasible_possibility
 
     def __add_cb_cut(self, model, worker_to_process, wp_set):
         worker_to_process_one = {(w, p) for w, p in wp_set if worker_to_process[w, p] == 1}
@@ -440,10 +487,10 @@ class Solver(Instance):
         f_m = lambda w, p, vars: 1 if vars[w, p].value > 0.5 else 0
         f_s = lambda a, b, vars: 1 if solver.Value(vars[a, b]) > 0.5 else 0
 
+        process_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
+
         for kk, cycle_count in product([6], [self.max_cycle_count]):
             model = self.__add_local_branching_cut(model, worker_to_process, "right", kk)
-            # optimizer = pyo.SolverFactory('gurobi')
-            optimizer = pyo.SolverFactory('appsi_highs')
             try:
                 results = optimizer.solve(model, tee=False)
             except:
@@ -453,19 +500,24 @@ class Solver(Instance):
             if not results.solver.termination_condition == TerminationCondition.infeasible:
                 worker_to_process_ = {
                     (w, p): f_m(w, p, model.assign_worker_to_process_vars) for w, p in model.worker_to_process}
-                cp_sub_model, cp_process_to_station = self.make_cp_sub_problem(
-                    worker_to_process_, cycle_count=cycle_count)
-                solver = cp_model.CpSolver()
-                solver.parameters.log_search_progress = False
-                solver.parameters.max_time_in_seconds = 15
-                status = solver.Solve(cp_sub_model)
-                if status == cp_model.OPTIMAL:
-                    process_to_station_ = {
-                        (p, s): f_s(p, s, cp_process_to_station) for p, s in cp_process_to_station}
-                    real_obj = self.get_real_objective(model)
-                    print(f"🟩 subproblem FEASIBLE, by local branching >>> real_obj = {real_obj}")
-                    model.local_branching_cuts.clear()
-                    return real_obj, worker_to_process_, process_to_station_
+                required_station_num, can_be_feasible = self.calc_station_lb(worker_to_process_)
+
+                if can_be_feasible:
+                    cp_sub_model, cp_process_to_station = self.make_cp_sub_problem(
+                        worker_to_process_, cycle_count=cycle_count)
+                    solver = cp_model.CpSolver()
+                    solver.parameters.log_search_progress = False
+                    solver.parameters.max_time_in_seconds = 15
+                    status = solver.Solve(cp_sub_model)
+
+                    if status == cp_model.OPTIMAL:
+                        process_to_station_ = {
+                            (p, s): f_s(p, s, cp_process_to_station) for p, s in cp_process_to_station}
+                        self.print_opt(model, worker_to_process_, process_to_station_)
+                        real_obj = self.get_real_objective(model)
+                        model.local_branching_cuts.clear()
+                        return real_obj, worker_to_process_, process_to_station_
+
             model.local_branching_cuts.clear()
         model.local_branching_cuts.clear()
         return 10, None, None
@@ -496,9 +548,6 @@ class Solver(Instance):
 
         for obj_weight, shrink in product(obj_weights, shrinks):
             model = self.make_master_problem(obj_weight=obj_weight, shrink=shrink)
-            optimizer = pyo.SolverFactory('appsi_highs')
-            # optimizer = pyo.SolverFactory('gurobi')
-            # optimizer.options["MIPFocus"] = 1
             try:
                 results = optimizer.solve(model, tee=False)
             except:
@@ -512,22 +561,31 @@ class Solver(Instance):
                 worker_to_process = {
                     (w, p): f_m(w, p, model.assign_worker_to_process_vars) for w, p in model.worker_to_process}
                 process_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
-                print("tasks   |" + " | ".join([str(p).rjust(3) for p in self.task_tp_order]))
-                print("workers |" + " | ".join([str(process_worker[p]).rjust(3) for p in self.task_tp_order]))
-                cp_sub_model, cp_process_to_station = self.make_cp_sub_problem(worker_to_process)
-                solver = cp_model.CpSolver()
-                solver.parameters.log_search_progress = False
-                solver.parameters.max_time_in_seconds = cp_time_limit
-                status = solver.Solve(cp_sub_model)
-                if status == cp_model.OPTIMAL:
-                    process_to_station = {
-                        (p, s): f_s(p, s, cp_process_to_station) for p, s in cp_process_to_station}
-                    process_station = {
-                        p: s for p, s in process_to_station if process_to_station[p, s] == 1}
-                    print(f"🟩 subproblem FEASIBLE >>> real_obj={real_obj}, obj_weight={obj_weight}, shrink={shrink}")
-                    print("stations|" + " | ".join([str(process_station[p]).rjust(3) for p in self.task_tp_order]))
-                    real_obj = self.get_real_objective(model)
-                    return real_obj, worker_to_process, process_to_station, self.max_cycle_count
+
+                # print("tasks   |" + " | ".join([str(p).rjust(3) for p in self.task_tp_order]))
+                # print("workers |" + " | ".join([str(process_worker[p]).rjust(3) for  p in self.task_tp_order]))
+                task_line = "tasks   |"
+                worker_line = "workers |"
+                for pros in self.task_tp_order_set:
+                    task_line += " ".join([str(p).rjust(3) for p in pros]) + " | "
+                    worker_line += " ".join([str(process_worker[p]).rjust(3) for p in pros]) + " | "
+                print(task_line[:-3])
+                print(worker_line[:-3])
+                required_station_num, can_be_feasible = self.calc_station_lb(worker_to_process)
+
+                if can_be_feasible:
+                    cp_sub_model, cp_process_to_station = self.make_cp_sub_problem(worker_to_process)
+                    solver = cp_model.CpSolver()
+                    solver.parameters.log_search_progress = False
+                    solver.parameters.max_time_in_seconds = cp_time_limit
+                    status = solver.Solve(cp_sub_model)
+                    if status == cp_model.OPTIMAL:
+                        process_to_station = {
+                            (p, s): f_s(p, s, cp_process_to_station) for p, s in cp_process_to_station}
+                        self.print_opt(model, worker_to_process, process_to_station)
+                        print(f"obj_weight={obj_weight}, shrink={shrink}")
+                        real_obj = self.get_real_objective(model)
+                        return real_obj, worker_to_process, process_to_station, self.max_cycle_count
 
         return 10, None, None, self.max_cycle_count
 
@@ -541,12 +599,10 @@ class Solver(Instance):
 
         # Solve master problem using MIP
         model = self.make_master_problem()
-        optimizer = pyo.SolverFactory('appsi_highs')
-        # optimizer = pyo.SolverFactory('gurobi')
-        # optimizer.options["MIPFocus"] = 1
         try:
             results = optimizer.solve(model, tee=False)
-        except:
+        except Exception as e:
+            print(e)
             return 10, None, None, self.max_cycle_count
 
         # CASE: master problem is infeasible
@@ -559,17 +615,26 @@ class Solver(Instance):
             (w, p): f_m(w, p, model.assign_worker_to_process_vars) for w, p in model.worker_to_process}
 
         while time.time() - start_time <= total_time_limit and not status == cp_model.OPTIMAL:
+
             iter += 1
             process_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
-            print("tasks   |" + " | ".join([str(p).rjust(3) for p in self.task_tp_order]))
-            print("workers |" + " | ".join([str(process_worker[p]).rjust(3) for p in self.task_tp_order]))
+            # print("tasks   |" + " | ".join([str(p).rjust(3) for p in self.task_tp_order]))
+            # print("workers |" + " | ".join([str(process_worker[p]).rjust(3) for p in self.task_tp_order]))
+            task_line = "tasks   |"
+            worker_line = "workers |"
+            for pros in self.task_tp_order_set:
+                task_line += " ".join([str(p).rjust(3) for p in pros]) + " | "
+                worker_line += " ".join([str(process_worker[p]).rjust(3) for p in pros]) + " | "
+            print(task_line[:-3])
+            print(worker_line[:-3])
+            required_station_num, can_be_feasible = self.calc_station_lb(worker_to_process)
 
             # valid_revisit, revisit_wp_set, min_station_num = self.fast_detect_revisit(worker_to_process)
             # valid_cycle, cycle_wp_set, min_cycle_num = self.fast_detect_cycle(worker_to_process)
             valid_revisit, revisit_wp_set = True, set(product(self.workers, self.processes))
             valid_cycle, cycle_wp_set = True, set(product(self.workers, self.processes))
 
-            if valid_revisit and valid_cycle:
+            if valid_revisit and valid_cycle and can_be_feasible:
                 cp_sub_model, cp_process_to_station = self.make_cp_sub_problem(worker_to_process)
                 solver = cp_model.CpSolver()
                 solver.parameters.log_search_progress = False
@@ -580,24 +645,24 @@ class Solver(Instance):
                 if status == cp_model.OPTIMAL:
                     process_to_station = {
                         (p, s): f_s(p, s, cp_process_to_station) for p, s in cp_process_to_station}
-                    process_station = {
-                        p: s for p, s in process_to_station if process_to_station[p, s] == 1}
-                    print(f"{str(iter).rjust(3)}     |" + "---".join(['---' for _ in self.task_tp_order]))
-                    print("stations|" + " | ".join([str(process_station[p]).rjust(3) for p in self.task_tp_order]))
+                    self.print_opt(model, worker_to_process, process_to_station)
                     real_obj = self.get_real_objective(model)
-                    print("time    |" + f" {time.time() - start_time:.2f} seconds")
-                    print(f"🟩 subproblem FEASIBLE >>> real_obj = {real_obj}")
                     return real_obj, worker_to_process, process_to_station, self.max_cycle_count
 
                 # CASA: subproblem is infeasible, add a cut to the master problem
                 else:
-                    real_obj_, worker_to_process_, process_to_station_ = self.__local_branching(model,
-                                                                                                worker_to_process)
+                    real_obj_, worker_to_process_, process_to_station_ = self.__local_branching(
+                        model, worker_to_process)
                     if real_obj_ != 10:
                         return real_obj_, worker_to_process_, process_to_station_, self.max_cycle_count
+
                     model = self.__add_cb_cut(
                         model, worker_to_process, wp_set=list(product(self.workers, self.processes)))
-                    results = optimizer.solve(model, tee=False)
+                    try:
+                        results = optimizer.solve(model, tee=False)
+                    except Exception as e:
+                        print(e)
+                        return 10, None, None, self.max_cycle_count
                     worker_to_process = {
                         (w, p): f_m(w, p, model.assign_worker_to_process_vars) for w, p in model.worker_to_process}
                     if results.solver.termination_condition == TerminationCondition.infeasible:
@@ -605,28 +670,52 @@ class Solver(Instance):
                         return 10, None, None, self.max_cycle_count
 
             # CASE: subproblem is infeasible (by fast detecting), add a cut to the master problem
-            else:  # not valid_revisit or not valid_cycle
+            else:
                 status = cp_model.INFEASIBLE
                 real_obj_, worker_to_process_, process_to_station_ = self.__local_branching(model, worker_to_process)
                 if real_obj_ != 10:
                     return real_obj_, worker_to_process_, process_to_station_, self.max_cycle_count
+
                 if not valid_revisit:
                     model = self.__add_cb_cut(model, worker_to_process, wp_set=revisit_wp_set)
                 if not valid_cycle:
                     model = self.__add_cb_cut(model, worker_to_process, wp_set=cycle_wp_set)
-                results = optimizer.solve(model, tee=False)
+                if not can_be_feasible:
+                    model = self.__add_cb_cut(
+                        model, worker_to_process, wp_set=list(product(self.workers, self.processes)))
+                try:
+                    results = optimizer.solve(model, tee=False)
+                except Exception as e:
+                    print(e)
+                    return 10, None, None, self.max_cycle_count
+
                 worker_to_process = {
                     (w, p): f_m(w, p, model.assign_worker_to_process_vars) for w, p in model.worker_to_process}
                 if results.solver.termination_condition == TerminationCondition.infeasible:
                     print(f"🟥 master problem INFEASIBLE")
                     return 10, None, None, self.max_cycle_count
 
-            print("time    |" + f" {time.time() - start_time:.2f} seconds")
-            print(f"{str(iter).rjust(3)}     |" + "---".join(['---' for _ in self.task_tp_order]))
+            print(f"{str(iter).rjust(5)}   |" + f" {time.time() - start_time:.2f} seconds")
 
         # CASE: time limit exceeded
         print(f"🟨 NO SOLUTION FOUND")
         return 10, None, None, self.max_cycle_count
+
+    def print_opt(self, model, worker_to_process, process_to_station):
+        process_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
+        process_station = {p: s for p, s in process_to_station if process_to_station[p, s] == 1}
+        print("OPTIMAL | " + '* * * ' * 20)
+        task_line = "tasks   |"
+        worker_line = "workers |"
+        station_line = "stations|"
+        for pros in self.task_tp_order_set:
+            task_line += " ".join([str(p).rjust(3) for p in pros]) + " | "
+            worker_line += " ".join([str(process_worker[p]).rjust(3) for p in pros]) + " | "
+            station_line += " ".join([str(process_station[p]).rjust(3) for p in pros]) + " | "
+        print(f"{task_line[:-3]}\n{worker_line[:-3]}\n{station_line[:-3]}")
+        real_obj = self.get_real_objective(model)
+        proxy_obj = model.objective.expr()
+        print(f"🟩 subproblem FEASIBLE >>> real_obj = {real_obj}, proxy_obj = {proxy_obj}")
 
     def get_real_objective(self, master_model):
         workloads = [pyo.value(master_model.workload_vars[w]) for w in self.workers]
@@ -639,8 +728,8 @@ class Solver(Instance):
 
 
 if __name__ == '__main__':
-    # instance_li = INSTANCES
-    instance_li = ["instance-5.txt", "instance-43.txt", "instance-38.txt"]
+    instance_li = INSTANCES
+    # instance_li = ["instance-31.txt"]
 
     start_time = time.time()
     real_objectives = {}
@@ -649,10 +738,10 @@ if __name__ == '__main__':
         instance_count += 1
         instance_start_time = time.time()
 
-        print(f"Solving {instance} [{instance_count}/{len(instance_li)}] ...")
+        print(f"Solving {instance} [{instance_count}/{len(instance_li)}]")
         S = Solver(load_json(f"instances/{instance}"))
 
-        real_obj, worker_to_process, process_to_station, cycle_num = S.solve(cp_time_limit=15, total_time_limit=120)
+        real_obj, worker_to_process, process_to_station, cycle_num = S.solve(cp_time_limit=22, total_time_limit=120)
 
         # if S.process_num >= 60:
         #     print("METHOD: alchemy()")
@@ -669,9 +758,8 @@ if __name__ == '__main__':
                 solution = Solution(S.instance_data, worker_to_process, process_to_station, cycle_num)
             except Exception as e:
                 print(e)
-
         real_objectives[instance] = real_obj
-        print(f"Runtime         : {time.time() - instance_start_time} seconds")
+        print(f"Ins. Runtime    : {time.time() - instance_start_time} seconds")
         print()
 
     print(f"Real objectives : {list(real_objectives.values())}")

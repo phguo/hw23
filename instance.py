@@ -3,6 +3,7 @@
 
 
 import os
+from copy import deepcopy
 from itertools import product
 
 from config import INSTANCES
@@ -88,18 +89,27 @@ class Instance(object):
             f"Ncol={self.ncol}"
         return n
 
-    def topological_ordering(self):
+    def topological_ordering(self, processes=None, immediate_precedence=None):
+        if immediate_precedence is None:
+            immediate_precedence = self.immediate_precedence
+        if processes is None:
+            processes = self.processes
+
         G = nx.DiGraph()
-        G.add_nodes_from(list(self.processes.keys()))
-        G.add_edges_from(self.immediate_precedence)
+        G.add_nodes_from(list(processes.keys()))
+        G.add_edges_from(immediate_precedence)
         topological_order = list(nx.topological_sort(G))
         return topological_order
 
-    def topological_ordering_set(self):
+    def topological_ordering_set(self, processes=None, immediate_precedence=None):
+        if immediate_precedence is None:
+            immediate_precedence = self.immediate_precedence
+        if processes is None:
+            processes = self.processes
         dep = dict()
-        for p in self.processes:
+        for p in processes:
             dep[p] = set()
-            for p1, p2 in self.immediate_precedence:
+            for p1, p2 in immediate_precedence:
                 if p2 == p:
                     dep[p].add(p1)
         return list(toposort(dep))
@@ -247,6 +257,54 @@ class Instance(object):
             raise Exception(
                 f"Process '{p}' in neither pros_have_capable_skill_workers nor pros_have_no_capable_skill_workers")
 
+    def _make_dummy_process(self, assign_worker_to_process_vals):
+        worker_to_process = assign_worker_to_process_vals
+        tmp = {(w, p) for w, p in worker_to_process if worker_to_process[w, p] == 1}
+        process_workers = {p: [] for p in self.processes}
+        for w, p in tmp:
+            process_workers[p].append(w)
+        processes_with_multiple_workers = {k: v for k, v in process_workers.items() if len(v) > 1}
+
+        dummy_processes = deepcopy(self.processes)
+        dummy_immediate_precedence = deepcopy(self.immediate_precedence)
+        dummy_assign_worker_to_process = deepcopy(assign_worker_to_process_vals)
+        dummy_processes_required_machine = deepcopy(self.processes_required_machine)
+        dummy_process_map = dict()
+
+        dummy_process_id = max(self.processes.keys()) + 1
+        for p, workers in processes_with_multiple_workers.items():
+            dummy_process_map.update({p: p})
+            for w in workers[1:]:
+                dummy_process_map.update({dummy_process_id: p})
+                # update assign_worker_to_process values
+                dummy_assign_worker_to_process[w, p] = 0
+                dummy_assign_worker_to_process[w, dummy_process_id] = 1
+                # update processes
+                dummy_processes.update({dummy_process_id: self.processes[p]})
+                # update immediate_precedence
+                for p1, p2 in self.immediate_precedence:
+                    if p1 == p:
+                        dummy_immediate_precedence.append((dummy_process_id, p2))
+                    if p2 == p:
+                        dummy_immediate_precedence.append((p1, dummy_process_id))
+                # update processes_required_machine
+                dummy_processes_required_machine.update({dummy_process_id: dummy_processes_required_machine[p]})
+                dummy_process_id += 1
+
+        for w, p in product(self.workers, dummy_processes):
+            if (w, p) not in dummy_assign_worker_to_process:
+                dummy_assign_worker_to_process[w, p] = 0
+
+        # print(processes_with_multiple_workers)
+        # print(list(self.processes.keys()))
+        # print(list(dummy_processes.keys()))
+        # print(dummy_process_map)
+        # print(list(k for k, v in assign_worker_to_process_vals.items() if v == 1))
+        # print(list(k for k, v in dummy_assign_worker_to_process.items() if v == 1))
+
+        return (dummy_processes, dummy_immediate_precedence, dummy_assign_worker_to_process,
+                dummy_processes_required_machine, dummy_process_map)
+
 
 if __name__ == '__main__':
     instance_li = INSTANCES
@@ -307,11 +365,13 @@ if __name__ == '__main__':
         # print(I.immediate_precedence)
         # break
 
-        print("task_tp_order_set", I.task_tp_order_set)
-        print("task_tp_set", I.task_tp_order)
-        print("max_worker_per_oper:", I.max_worker_per_oper)
-        print("max_station_per_oper:", I.max_station_per_oper)
-        print("max_split_num:", I.max_split_num)
+        # print("task_tp_order_set", I.task_tp_order_set)
+        # print("task_tp_set", I.task_tp_order)
+        print(
+            "max_worker_per_oper:", I.max_worker_per_oper,
+            "max_station_per_oper:", I.max_station_per_oper,
+            "max_split_num:", I.max_split_num
+        )
 
         # print(I.upph_weight, I.volatility_weight)
 

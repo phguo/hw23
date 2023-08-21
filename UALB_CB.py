@@ -172,14 +172,14 @@ class Solver(Instance):
             m.workload_vars[w] >= m.mean_workload_var * (1 - self.volatility_rate + shrink[1]))
 
         # Objective: weighted proxy objective
-        # model.objective = pyo.Objective(
-        #     expr=obj_weight[0] * model.max_workload_var
-        #          + obj_weight[1] * model.mean_workload_var
-        #          + obj_weight[2] * 0,
-        #     sense=pyo.minimize)
+        model.objective = pyo.Objective(
+            expr=obj_weight[0] * model.max_workload_var
+                 + obj_weight[1] * model.mean_workload_var
+                 + obj_weight[2] * 0,
+            sense=pyo.minimize)
 
         # Objective: feasibility checking
-        model.objective = pyo.Objective(expr=0, sense=pyo.minimize)
+        # model.objective = pyo.Objective(expr=0, sense=pyo.minimize)
 
         # Objective: Gini deviation -> slower
         # model.abs_obj_vars = pyo.Var(

@@ -2,6 +2,7 @@ instances/*.txt
 solutions/*.txt
 *.whl
 /backup
+/whl
 customize_service.py
 config.json
 *.pth

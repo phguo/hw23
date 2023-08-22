@@ -84,10 +84,15 @@ class Instance(object):
         self.task_tp_order = self.topological_ordering()
         self.task_tp_order_set = self.topological_ordering_set()
 
+        self.allow_split = self.allow_split()
+
     def __str__(self):
         n = f"|P|={self.process_num}, |S|={self.station_num}, |W|={self.worker_num}, MC={self.max_cycle_count}, " \
             f"Ncol={self.ncol}"
         return n
+
+    def allow_split(self):
+        return not (self.max_worker_per_oper == 1 or self.max_station_per_oper == 1)
 
     def topological_ordering(self, processes=None, immediate_precedence=None):
         if immediate_precedence is None:
@@ -265,6 +270,9 @@ class Instance(object):
             process_workers[p].append(w)
         processes_with_multiple_workers = {k: v for k, v in process_workers.items() if len(v) > 1}
 
+        # print(process_workers)
+        # print(processes_with_multiple_workers)
+
         dummy_processes = deepcopy(self.processes)
         dummy_immediate_precedence = deepcopy(self.immediate_precedence)
         dummy_assign_worker_to_process = deepcopy(assign_worker_to_process_vals)
@@ -295,7 +303,6 @@ class Instance(object):
             if (w, p) not in dummy_assign_worker_to_process:
                 dummy_assign_worker_to_process[w, p] = 0
 
-        # print(processes_with_multiple_workers)
         # print(list(self.processes.keys()))
         # print(list(dummy_processes.keys()))
         # print(dummy_process_map)
@@ -308,7 +315,7 @@ class Instance(object):
 
 if __name__ == '__main__':
     instance_li = INSTANCES
-    # instance_li = ["instance-50.txt"]
+    # instance_li = ["instance-29.txt"]
 
     for instance in instance_li:
         print("Loading instance:", instance)
@@ -370,7 +377,8 @@ if __name__ == '__main__':
         print(
             "max_worker_per_oper:", I.max_worker_per_oper,
             "max_station_per_oper:", I.max_station_per_oper,
-            "max_split_num:", I.max_split_num
+            "max_split_num:", I.max_split_num,
+            "allow_split:", I.allow_split
         )
 
         # print(I.upph_weight, I.volatility_weight)

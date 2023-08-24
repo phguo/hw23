@@ -676,7 +676,7 @@ class Solver(Instance):
                 (real_obj_, worker_to_process_, process_to_station_, worker_to_station_, process_map_
                  ) = self.__local_branching(model, worker_to_process, split_task=split_task)
                 if real_obj_ != 10:
-                    print(f"🟦 LOCAL BRANCHING finds an optimal solution")
+                    print(f"🟦 LOCAL BRANCHING finds a FEASIBLE solution")
                     self.print_opt(model, worker_to_process_, process_to_station_)
                     return real_obj_, worker_to_process_, process_to_station_, worker_to_station_, self.max_cycle_count, process_map_
 

@@ -148,21 +148,17 @@ class Instance(object):
 
         # Get ordered parts' processes based on "operation_number"
         parts = sorted(list(set([p.part_code for p in self.processes.values()])))
-        self.parts_processes = {part: None for part in parts}
+        self.parts_processes = {part: [] for part in parts}
         for part in parts:
             for process in self.processes.values():
                 if process.part_code == part:
-                    if self.parts_processes[part] is None:
-                        self.parts_processes[part] = [process]
-                    else:
-                        self.parts_processes[part].append(process)
+                    self.parts_processes[part].append(process)
         for k, v in self.parts_processes.items():
             self.parts_processes[k] = sorted(v, key=lambda x: int(x.operation_number))
 
         # Immediate precedence based on "operation_number"
         for part, processes in self.parts_processes.items():
             for i, process in enumerate(processes):
-                # print(part, process.operation_number, process.operation, self.process_code_to_id[process.operation])
                 if i != 0:
                     a = self.process_code_to_id[processes[i - 1].operation]
                     b = self.process_code_to_id[process.operation]
@@ -193,16 +189,12 @@ class Instance(object):
             (w, p): 1 if p in self.workers_category_capable_pro[w] else 0
             for w, p in product(self.workers, self.processes)}
 
-        self.pros_have_capable_skill_workers = set()
-        for p, w in product(self.processes, self.workers):
-            if self.skill_capable[(w, p)] == 1:
-                self.pros_have_capable_skill_workers.add(p)
-        self.pros_have_no_capable_skill_workers = set(self.processes.keys()) - self.pros_have_capable_skill_workers
-
         self.pros_skill_capable_workers = {
             p: {w for w in self.workers if self.skill_capable[(w, p)] == 1} for p in self.processes}
         self.pros_category_capable_workers = {
             p: {w for w in self.workers if self.category_capable[(w, p)] == 1} for p in self.processes}
+
+        self.pros_have_capable_skill_workers = {k for k, v in self.pros_skill_capable_workers.items() if v}
 
     def get_processes_aux_machine(self):
         self.processes_required_machine = dict()
@@ -216,18 +208,12 @@ class Instance(object):
         self.stations_fixed_machines = {s: [] for s in self.stations.keys()}
         for s, station in self.stations.items():
             if station.curr_machine_list:
-                assert len(station.curr_machine_list) == 1
                 for k, machine in self.aux_machines.items():
                     if machine.machine_type.split('_')[0] in [a["machine_type"] for a in station.curr_machine_list]:
                         if not machine.is_movable:
                             self.stations_fixed_machines[s].append(k)
-                            assert len(self.stations_fixed_machines[s]) == 1
-        self.stations_fixed_machine = {k: v[0] if v else None for k, v in self.stations_fixed_machines.items()}
 
-        self.fixed_machines = set()
-        for v in self.stations_fixed_machine.values():
-            if v:
-                self.fixed_machines.add(v)
+        self.fixed_machines = set(m for m, machine in self.aux_machines.items() if not machine.is_movable)
 
     def get_mono_aux_machines(self):
         self.mono_aux_machines = [k for k, m in self.aux_machines.items() if m.is_mono]
@@ -249,7 +235,6 @@ class Instance(object):
         return res
 
     def _get_efficiency(self, w, p):
-        # DEBUG: instance-50 is inherently infeasible without splitting?
         if p in self.workers_capble_pro[w]:
             for skill in self.workers[w].operation_skill_list:
                 if skill["operation_code"] == self.processes[p].operation:
@@ -315,7 +300,7 @@ class Instance(object):
 
 if __name__ == '__main__':
     instance_li = INSTANCES
-    # instance_li = ["instance-29.txt"]
+    # instance_li = ["instance-11.txt"]
 
     for instance in instance_li:
         print("Loading instance:", instance)
@@ -374,13 +359,15 @@ if __name__ == '__main__':
 
         # print("task_tp_order_set", I.task_tp_order_set)
         # print("task_tp_set", I.task_tp_order)
-        print(
-            "max_worker_per_oper:", I.max_worker_per_oper,
-            "max_station_per_oper:", I.max_station_per_oper,
-            "max_split_num:", I.max_split_num,
-            "allow_split:", I.allow_split
-        )
+        # print(
+        #     "max_worker_per_oper:", I.max_worker_per_oper,
+        #     "max_station_per_oper:", I.max_station_per_oper,
+        #     I.max_worker_per_oper > I.max_station_per_oper,
+        #     # "max_split_num:", I.max_split_num,
+        #     # "allow_split:", I.allow_split
+        # )
 
-        # print(I.upph_weight, I.volatility_weight)
+        # print([(m.machine_type, m.is_movable) for m in I.aux_machines.values()])
+        # print([s.curr_machine_list for s in I.stations.values()])
 
         print()

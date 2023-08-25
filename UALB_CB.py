@@ -16,6 +16,7 @@ from utility import load_json, save_json
 optimizer = pyo.SolverFactory('appsi_highs')
 optimizer.config.load_solution = False
 
+
 # try:
 #     import socket
 #
@@ -203,14 +204,17 @@ class Solver(Instance):
             m.workload_vars[w] >= m.mean_workload_var * (1 - self.volatility_rate + shrink[1]))
 
         # Objective: weighted proxy objective
-        model.objective = pyo.Objective(
-            expr=obj_weight[0] * model.max_workload_var
-                 + obj_weight[1] * model.mean_workload_var
-                 + obj_weight[2] * 0,
-            sense=pyo.minimize)
+        # model.objective = pyo.Objective(
+        #     expr=obj_weight[0] * model.max_workload_var
+        #          + obj_weight[1] * model.mean_workload_var
+        #          + obj_weight[2] * 0,
+        #     sense=pyo.minimize)
 
         # Objective: feasibility checking
-        # model.objective = pyo.Objective(expr=0, sense=pyo.minimize)
+        model.objective = pyo.Objective(expr=0, sense=pyo.minimize)
+
+        # Objective: mean workload
+        # model.objective = pyo.Objective(expr=model.mean_workload_var, sense=pyo.minimize)
 
         # Objective: Gini deviation -> slower
         # model.abs_obj_vars = pyo.Var(
@@ -491,6 +495,7 @@ class Solver(Instance):
         for w, p in worker_to_process:
             if worker_to_process[w, p] == 1:
                 process_workers[p].append(w)
+
         required_station_num = 0
         worker_set_before = set()
         for i, pros in enumerate(self.task_tp_order_set):
@@ -532,6 +537,7 @@ class Solver(Instance):
                 sum(model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_zero) +
                 sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one)
                 <= k)
+
         if left_or_right == "right":
             model.local_branching_cuts.add(
                 expr=
@@ -544,8 +550,8 @@ class Solver(Instance):
     def __local_branching(self, model, worker_to_process, split_task):
         f_s = lambda a, b, vars: 1 if solver.Value(vars[a, b]) > 0.5 else 0
 
-        for k in PARAMETERS["LOCAL_BRANCHING_K_SET"]:
-            model = self.__add_local_branching_cut(model, worker_to_process, "right", k)
+        for k, side in product(PARAMETERS["LOCAL_BRANCHING_K_SET"], ["right"]):
+            model = self.__add_local_branching_cut(model, worker_to_process, side, k)
             model, worker_to_process = self.solve_master_problem(model)
 
             if worker_to_process is not None:
@@ -569,12 +575,15 @@ class Solver(Instance):
                         model.local_branching_cuts.clear()
                         return real_obj, worker_to_process, process_to_station, worker_to_station, process_map
                     else:
+                        model.local_branching_cuts.clear()
                         model = self.__add_cb_cut(model, worker_to_process, product(self.workers, self.processes))
                 else:
+                    model.local_branching_cuts.clear()
                     model = self.__add_cb_cut(model, worker_to_process, product(self.workers, self.processes))
             else:
                 model.local_branching_cuts.clear()
                 break
+
         model.local_branching_cuts.clear()
         return 10, None, None, None, None
 
@@ -657,7 +666,7 @@ class Solver(Instance):
                     (real_obj_, worker_to_process_, process_to_station_, worker_to_station_, process_map_
                      ) = self.__local_branching(model, worker_to_process, split_task=split_task)
                     if real_obj_ != 10:
-                        print(f"🟦 LOCAL BRANCHING finds an optimal solution")
+                        print(f"🟦 LOCAL BRANCHING finds a FEASIBLE solution")
                         self.print_opt(model, worker_to_process_, process_to_station_)
                         return real_obj_, worker_to_process_, process_to_station_, worker_to_station_, self.max_cycle_count, process_map_
 

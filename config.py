@@ -33,24 +33,26 @@ INSTANCES = [
     # "instance-43.txt",  # |P|=80, |S|=20, |W|=10, C=5, COL=80000C
     # "instance-21.txt",  # |P|=55, |S|=32, |W|=23, C=8, COL=323840C
     # "instance-34.txt",  # |P|=58, |S|=32, |W|=23, C=8, COL=341504C
-    # "instance-48.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, solved with obj max, k list(range(1, 90, 4))
-    # "instance-49.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, solved with obj max, k list(range(1, 90, 4))
-    # "instance-45.txt",  # |P|=78, |S|=23, |W|=12, C=5, COL=107640, solved with obj max, k list(range(1, 90, 4))
-    # "instance-6.txt",  # |P|=63, |S|=20, |W|=11, C=5, COL=69300, solved with obj 0, k list(range(1, 90, 4))
-    # "instance-55.txt",  # |P|=69, |S|=24, |W|=16, C=8, COL=211968C, solved with obj 0, k list(range(1, 90, 4))
-    # "instance-33.txt",  # |P|=84, |S|=32, |W|=19, C=5, COL=255360C, solved with obj 0, k list(range(1, 90, 4))
 
-    # # TODO: 🟨 Hard instances without splitting
+    # 🟨 Hard, but can be solved occasionally
+    # "instance-48.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
+    # "instance-49.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
+    # "instance-45.txt",  # |P|=78, |S|=23, |W|=12, C=5, COL=107640, obj max, k range(1, 90, 4)
+    # "instance-6.txt",  # |P|=63, |S|=20, |W|=11, C=5, COL=69300, obj 0, k range(1, 90, 4)
+    # "instance-55.txt",  # |P|=69, |S|=24, |W|=16, C=8, COL=211968C, obj 0, k range(1, 90, 4)
+    # "instance-33.txt",  # |P|=84, |S|=32, |W|=19, C=5, COL=255360C, obj 0, k range(1, 90, 4)
+    # "instance-53.txt",  # |P|=56, |S|=24, |W|=16, C=5, COL=107520C
     # "instance-19.txt",  # |P|=63, |S|=53, |W|=25, C=8, COL=667800
+
+    # # TODO: 🟨 Hard, and usually can not be solved
     # "instance-5.txt",  # |P|=68, |S|=20, |W|=11, C=5, COL=74800C
     # "instance-38.txt",  # |P|=74, |S|=23, |W|=12, C=4, COL=81696C
     # "instance-32.txt",  # |P|=61, |S|=24, |W|=15, C=4, COL=87840C
-    # "instance-29.txt",  # |P|=68, |S|=20, |W|=11, C=6, COL=89760C
-    # "instance-31.txt",  # |P|=60, |S|=24, |W|=16, C=4, COL=92160C
-    # "instance-28.txt",  # |P|=68, |S|=23, |W|=13, C=5, COL=101660C
-    # "instance-53.txt",  # |P|=56, |S|=24, |W|=16, C=5, COL=107520C
-    # "instance-1.txt",  # |P|=83, |S|=20, |W|=14, C=5, COL=116200C
-    # "instance-25.txt",  # |P|=104, |S|=32, |W|=24, C=8, COL=638976C
+    "instance-29.txt",  # |P|=68, |S|=20, |W|=11, C=6, COL=89760C
+    "instance-31.txt",  # |P|=60, |S|=24, |W|=16, C=4, COL=92160C
+    "instance-28.txt",  # |P|=68, |S|=23, |W|=13, C=5, COL=101660C
+    "instance-1.txt",  # |P|=83, |S|=20, |W|=14, C=5, COL=116200C
+    "instance-25.txt",  # |P|=104, |S|=32, |W|=24, C=8, COL=638976C
 
     # # 🟥 Infeasible instances without splitting
     # "instance-7.txt",  # |P|=28, |S|=24, |W|=14, C=4, COL=37632C
@@ -70,12 +72,10 @@ INSTANCES = [
     # "instance-54.txt",  # |P|=38, |S|=20, |W|=16, C=4, COL=48640C, infeasible (?)
 ]
 
-SOLVERS = ["gurobi", "glpk", "cbc", "lp_solve", "scip"]
-
 PARAMETERS = {
     "TOTAL_TIME_LIMIT": 360 * 2,
     "CP_TIME_LIMIT": 25,
-    "LOCAL_BRANCHING_K_SET": list(range(1, 90, 4)),
+    "LOCAL_BRANCHING_K_SET": list(range(0, 31, 6)),
 }
 
 if __name__ == '__main__':

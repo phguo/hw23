@@ -490,7 +490,7 @@ class Solver(Instance):
 
         return cp, cp_process_to_station, cp_worker_to_station, process_map
 
-    def calc_station_lb(self, worker_to_process):
+    def calc_station_lb(self, worker_to_process, reverse=False):
         process_workers = {p: [] for p in self.processes}
         for w, p in worker_to_process:
             if worker_to_process[w, p] == 1:
@@ -505,13 +505,14 @@ class Solver(Instance):
         #             required_station_num += 1
         #     worker_set_before = worker_set
 
-        # 0826 TODO: stronger WP-SET
+        # 0826 TODO: stronger WP-SET -> two WP-SET, one based on task_tp_order_set and the other based on its reverse
         required_station_num = 0
         worker_set_before = set()
         p_set = set()
         minimal_p_set = set(k for k in self.processes.keys())
         minimal_p_set_found = False
-        for i, pros in enumerate(self.task_tp_order_set):
+        li = self.task_tp_order_set if not reverse else reversed(self.task_tp_order_set)
+        for i, pros in enumerate(li):
             p_set |= set(pros)
             worker_set = list(set(w for p in pros for w in process_workers[p]))
             for j, w in enumerate(worker_set):
@@ -580,16 +581,20 @@ class Solver(Instance):
     def __local_branching(self, model, worker_to_process, split_task):
         f_s = lambda a, b, vars: 1 if solver.Value(vars[a, b]) > 0.5 else 0
 
-        for k, side in product(PARAMETERS["LOCAL_BRANCHING_K_SET"], ["right"]):
-            model = self.__add_local_branching_cut(model, worker_to_process, side, k)
-            model, worker_to_process = self.solve_master_problem(model)
+        perm_worker_to_process = deepcopy(worker_to_process)
 
-            if worker_to_process is not None:
-                _, minimal_p_set, can_be_feasible = self.calc_station_lb(worker_to_process)
+        for k, side in product(PARAMETERS["LOCAL_BRANCHING_K_SET"], ["right"]):
+            model = self.__add_local_branching_cut(model, perm_worker_to_process, side, k)
+            model, local_worker_to_process = self.solve_master_problem(model)
+
+            if local_worker_to_process is not None:
+                _, minimal_p_set, can_be_feasible = self.calc_station_lb(local_worker_to_process)
+                _, minimal_p_set_r, can_be_feasible_r = self.calc_station_lb(local_worker_to_process, reverse=True)
+                can_be_feasible = can_be_feasible or can_be_feasible_r
 
                 if can_be_feasible:
                     cp_sub_model, cp_process_to_station, cp_worker_to_station, process_map = self.make_cp_sub_problem(
-                        worker_to_process, split_task=split_task)
+                        local_worker_to_process, split_task=split_task)
                     solver = cp_model.CpSolver()
                     solver.parameters.log_search_progress = False
                     solver.parameters.max_time_in_seconds = PARAMETERS["CP_TIME_LIMIT"]
@@ -600,16 +605,17 @@ class Solver(Instance):
                             (p, s): f_s(p, s, cp_process_to_station) for p, s in cp_process_to_station}
                         worker_to_station = {
                             (w, s): f_s(w, s, cp_worker_to_station) for w, s in cp_worker_to_station}
-                        # self.print_opt(model, worker_to_process, process_to_station)
+                        # self.print_opt(model, local_worker_to_process, process_to_station)
                         real_obj = self.get_real_objective(model)
                         model.local_branching_cuts.clear()
-                        return real_obj, worker_to_process, process_to_station, worker_to_station, process_map
+                        return real_obj, local_worker_to_process, process_to_station, worker_to_station, process_map
                     else:
                         model.local_branching_cuts.clear()
-                        model = self.__add_cb_cut(model, worker_to_process, product(self.workers, self.processes))
+                        model = self.__add_cb_cut(model, local_worker_to_process, product(self.workers, self.processes))
                 else:
                     model.local_branching_cuts.clear()
-                    model = self.__add_cb_cut(model, worker_to_process, product(self.workers, minimal_p_set))
+                    model = self.__add_cb_cut(model, local_worker_to_process, product(self.workers, minimal_p_set))
+                    model = self.__add_cb_cut(model, local_worker_to_process, product(self.workers, minimal_p_set_r))
             else:
                 model.local_branching_cuts.clear()
                 # break
@@ -625,6 +631,7 @@ class Solver(Instance):
 
         if results.solver.termination_condition == TerminationCondition.infeasible:
             print(f"🟥 master problem is INFEASIBLE")
+            pass
 
         if results.solver.termination_condition == TerminationCondition.optimal:
             model.solutions.load_from(results)
@@ -653,11 +660,11 @@ class Solver(Instance):
 
         while time.time() - start_time <= total_time_limit and not sub_status == cp_model.OPTIMAL:
             iter += 1
-            process_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
 
             """
             Print (worker, process) assignment
             """
+            process_worker = {p: w for w, p in worker_to_process if worker_to_process[w, p] == 1}
             task_line = "tasks   |"
             worker_line = "workers |"
             for pros in self.task_tp_order_set:
@@ -670,6 +677,8 @@ class Solver(Instance):
             Fast check MP feasibility
             """
             _, minimal_p_set, can_be_feasible = self.calc_station_lb(worker_to_process)
+            _, minimal_p_set_r, can_be_feasible_r = self.calc_station_lb(worker_to_process, reverse=True)
+            can_be_feasible = can_be_feasible or can_be_feasible_r
 
             if can_be_feasible:
                 cp_sub_model, cp_process_to_station, cp_worker_to_station, process_map = self.make_cp_sub_problem(
@@ -727,6 +736,7 @@ class Solver(Instance):
                 """
                 sub_status = cp_model.INFEASIBLE
                 model = self.__add_cb_cut(model, worker_to_process, wp_set=product(self.workers, minimal_p_set))
+                model = self.__add_cb_cut(model, worker_to_process, wp_set=product(self.workers, minimal_p_set_r))
                 _, worker_to_process = self.solve_master_problem(model)
                 if worker_to_process is None:
                     return 10, None, None, None, self.max_cycle_count, None
@@ -768,12 +778,12 @@ class Solver(Instance):
         output_json = None
         real_obj = 10
 
-        for split_task, obj_weight in product([False, True], [(0, 0, 1), (1, 0, 0)]):
+        for split_task, (obj_weight, limit) in product([False, True], [((0, 0, 1), 120), ((1, 0, 0), 360)]):
             if self.no_need_split and split_task:
                 break
             real_obj, worker_to_process, process_to_station, worker_to_station, cycle_num, process_map = self.solve(
                 split_task=split_task, obj_weight=obj_weight,
-                cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=PARAMETERS["TOTAL_TIME_LIMIT"])
+                cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=limit)
             if self.solved:
                 solution = Solution(
                     self.instance_data,

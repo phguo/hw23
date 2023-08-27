@@ -45,27 +45,27 @@ INSTANCES = [
     "instance-19.txt",  # |P|=63, |S|=53, |W|=25, C=8, COL=667800
 
     # # TODO: 🟨 Hard, and usually can not be solved
-    # "instance-5.txt",  # |P|=68, |S|=20, |W|=11, C=5, COL=74800C
-    # "instance-38.txt",  # |P|=74, |S|=23, |W|=12, C=4, COL=81696C
-    # "instance-32.txt",  # |P|=61, |S|=24, |W|=15, C=4, COL=87840C
-    # "instance-29.txt",  # |P|=68, |S|=20, |W|=11, C=6, COL=89760C
-    # "instance-31.txt",  # |P|=60, |S|=24, |W|=16, C=4, COL=92160C
-    # "instance-28.txt",  # |P|=68, |S|=23, |W|=13, C=5, COL=101660C
-    # "instance-1.txt",  # |P|=83, |S|=20, |W|=14, C=5, COL=116200C
-    # "instance-25.txt",  # |P|=104, |S|=32, |W|=24, C=8, COL=638976C
+    "instance-5.txt",  # |P|=68, |S|=20, |W|=11, C=5, COL=74800C
+    "instance-38.txt",  # |P|=74, |S|=23, |W|=12, C=4, COL=81696C
+    "instance-32.txt",  # |P|=61, |S|=24, |W|=15, C=4, COL=87840C
+    "instance-29.txt",  # |P|=68, |S|=20, |W|=11, C=6, COL=89760C
+    "instance-31.txt",  # |P|=60, |S|=24, |W|=16, C=4, COL=92160C
+    "instance-28.txt",  # |P|=68, |S|=23, |W|=13, C=5, COL=101660C
+    "instance-1.txt",  # |P|=83, |S|=20, |W|=14, C=5, COL=116200C
+    "instance-25.txt",  # |P|=104, |S|=32, |W|=24, C=8, COL=638976C
 
     # # 🟥 Infeasible instances without splitting
-    "instance-7.txt",  # |P|=28, |S|=24, |W|=14, C=4, COL=37632C
-    "instance-8.txt",  # |P|=28, |S|=24, |W|=14, C=4, COL=37632C
-    "instance-9.txt",  # |P|=28, |S|=26, |W|=14, C=4, COL=40768C
-    "instance-35.txt",  # |P|=36, |S|=25, |W|=16, C=4, COL=57600C
-    "instance-36.txt",  # |P|=36, |S|=25, |W|=16, C=4, COL=57600C
-    "instance-12.txt",  # |P|=39, |S|=24, |W|=17, C=4, COL=63648C
-    "instance-11.txt",  # |P|=39, |S|=27, |W|=17, C=4, COL=71604C
-    "instance-18.txt",  # |P|=26, |S|=26, |W|=15, C=8, COL=81120C
-    "instance-37.txt",  # |P|=28, |S|=26, |W|=15, C=8, COL=87360C
-    "instance-56.txt",  # |P|=32, |S|=27, |W|=16, C=8, COL=110592C
-    "instance-20.txt",  # |P|=54, |S|=32, |W|=22, C=8, COL=304128C
+    # "instance-7.txt",  # |P|=28, |S|=24, |W|=14, C=4, COL=37632C
+    # "instance-8.txt",  # |P|=28, |S|=24, |W|=14, C=4, COL=37632C
+    # "instance-9.txt",  # |P|=28, |S|=26, |W|=14, C=4, COL=40768C
+    # "instance-35.txt",  # |P|=36, |S|=25, |W|=16, C=4, COL=57600C
+    # "instance-36.txt",  # |P|=36, |S|=25, |W|=16, C=4, COL=57600C
+    # "instance-12.txt",  # |P|=39, |S|=24, |W|=17, C=4, COL=63648C
+    # "instance-11.txt",  # |P|=39, |S|=27, |W|=17, C=4, COL=71604C
+    # "instance-18.txt",  # |P|=26, |S|=26, |W|=15, C=8, COL=81120C
+    # "instance-37.txt",  # |P|=28, |S|=26, |W|=15, C=8, COL=87360C
+    # "instance-56.txt",  # |P|=32, |S|=27, |W|=16, C=8, COL=110592C
+    # "instance-20.txt",  # |P|=54, |S|=32, |W|=22, C=8, COL=304128C
     # "instance-59.txt",  # |P|=56, |S|=55, |W|=26, C=8, COL=640640C, hard
     # "instance-58.txt",  # |P|=63, |S|=55, |W|=28, C=8, COL=776160C, hard
     # "instance-50.txt",  # |P|=50, |S|=20, |W|=9, C=5, COL=45000C, infeasible inherently
@@ -75,9 +75,11 @@ INSTANCES = [
 PARAMETERS = {
     "TOTAL_TIME_LIMIT": 360 * 2,
     "CP_TIME_LIMIT": 25,
-    "LOCAL_BRANCHING_K_SET": list(range(0, 31, 6)),
+    "LOCAL_BRANCHING_K_SET": range(1, 90, 4),
 }
 
 if __name__ == '__main__':
     for i in sorted(INSTANCES):
         print(i)
+
+# list(range(0, 31, 6))

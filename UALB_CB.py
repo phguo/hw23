@@ -570,11 +570,11 @@ class Solver(Instance):
                 >= k + 1)
 
             # 0826 TODO: diversification searching using black box optimizer
-            model.local_branching_cuts.add(
-                expr=
-                sum(model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_zero) +
-                sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one)
-                <= k + 6)
+            # model.local_branching_cuts.add(
+            #     expr=
+            #     sum(model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_zero) +
+            #     sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one)
+            #     <= k + 6)
 
         return model
 
@@ -618,7 +618,7 @@ class Solver(Instance):
                     model = self.__add_cb_cut(model, local_worker_to_process, product(self.workers, minimal_p_set_r))
             else:
                 model.local_branching_cuts.clear()
-                # break
+                break
 
         model.local_branching_cuts.clear()
         return 10, None, None, None, None

@@ -65,7 +65,9 @@ class Solver(Instance):
                 (sum(m.assign_worker_to_process_vars[w, p] for w in self.workers) - 1)
                 / (min(self.max_worker_per_oper, self.max_station_per_oper) - 1))
             # HINT: stronger than required (?) -> but smaller decision space
-            MAX_SPLIT_TASKS = self.max_split_num  # 3 is sufficient for at least feasible solutions
+            # MAX_SPLIT_TASKS = self.max_split_num  # 3 is sufficient for at least feasible solutions
+            MAX_SPLIT_TASKS = self.max_split_num if PARAMETERS["MAX_SPLIT_TASK_NUM"] is None else PARAMETERS[
+                "MAX_SPLIT_TASK_NUM"]
             model.max_split_process_cons = pyo.Constraint(
                 expr=sum(model.process_split_vars[p] for p in self.processes) <= MAX_SPLIT_TASKS)
 
@@ -547,7 +549,7 @@ class Solver(Instance):
 
         # 0826 TODO: stronger CB cuts for non split problems
         # model.cb_cuts.add(
-        #     expr=sum(model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_zero) >= 1)
+        #     expr=sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one) >= 1)
 
         return model
 
@@ -574,7 +576,7 @@ class Solver(Instance):
             #     expr=
             #     sum(model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_zero) +
             #     sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one)
-            #     <= k + 6)
+            #     <= k + 10)
 
         return model
 
@@ -646,6 +648,7 @@ class Solver(Instance):
         start_time = time.time()
         sub_status = cp_model.INFEASIBLE
         iter = 0
+        self.obj_changed = False
 
         """
         Solve the Master Problem (MP)
@@ -659,8 +662,15 @@ class Solver(Instance):
                 self.no_need_split = True
 
         while time.time() - start_time <= total_time_limit and not sub_status == cp_model.OPTIMAL:
-            iter += 1
 
+            # 0827 TODO:change objective, but preserve CB cuts
+            if (iter > PARAMETERS["CHANGE_OBJ_ITER"]
+                or time.time() - start_time > PARAMETERS["CHANGE_OBJ_TIME"]) and not self.obj_changed:
+                model.del_component(model.objective)
+                model.objective = pyo.Objective(expr=model.max_workload_var, sense=pyo.minimize)
+                self.obj_changed = True
+
+            iter += 1
             """
             Print (worker, process) assignment
             """
@@ -778,12 +788,14 @@ class Solver(Instance):
         output_json = None
         real_obj = 10
 
-        for split_task, (obj_weight, limit) in product([False, True], [((0, 0, 1), 120), ((1, 0, 0), 360)]):
+        # for split_task, (obj_weight, limit) in product([False, True], [((0, 0, 1), 60), ((1, 0, 0), 360)]):
+        # 0827 TODO:change objective, but preserve CB cuts
+        for split_task in [False, True]:
             if self.no_need_split and split_task:
                 break
             real_obj, worker_to_process, process_to_station, worker_to_station, cycle_num, process_map = self.solve(
-                split_task=split_task, obj_weight=obj_weight,
-                cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=limit)
+                split_task=split_task, obj_weight=PARAMETERS["OBJ_WEIGHT"],
+                cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=PARAMETERS["TOTAL_TIME_LIMIT"])
             if self.solved:
                 solution = Solution(
                     self.instance_data,

@@ -35,14 +35,14 @@ INSTANCES = [
     # "instance-34.txt",  # |P|=58, |S|=32, |W|=23, C=8, COL=341504C
 
     # 🟨 Hard, but can be solved occasionally
-    "instance-48.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
-    "instance-49.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
-    "instance-45.txt",  # |P|=78, |S|=23, |W|=12, C=5, COL=107640, obj max, k range(1, 90, 4)
-    "instance-6.txt",  # |P|=63, |S|=20, |W|=11, C=5, COL=69300, obj 0, k range(1, 90, 4)
-    "instance-55.txt",  # |P|=69, |S|=24, |W|=16, C=8, COL=211968C, obj 0, k range(1, 90, 4)
-    "instance-33.txt",  # |P|=84, |S|=32, |W|=19, C=5, COL=255360C, obj 0, k range(1, 90, 4)
-    "instance-53.txt",  # |P|=56, |S|=24, |W|=16, C=5, COL=107520C
-    "instance-19.txt",  # |P|=63, |S|=53, |W|=25, C=8, COL=667800
+    # "instance-48.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
+    # "instance-49.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
+    # "instance-45.txt",  # |P|=78, |S|=23, |W|=12, C=5, COL=107640, obj max, k range(1, 90, 4)
+    # "instance-6.txt",  # |P|=63, |S|=20, |W|=11, C=5, COL=69300, obj 0, k range(1, 90, 4)
+    # "instance-55.txt",  # |P|=69, |S|=24, |W|=16, C=8, COL=211968C, obj 0, k range(1, 90, 4)
+    # "instance-33.txt",  # |P|=84, |S|=32, |W|=19, C=5, COL=255360C, obj 0, k range(1, 90, 4)
+    # "instance-53.txt",  # |P|=56, |S|=24, |W|=16, C=5, COL=107520C
+    # "instance-19.txt",  # |P|=63, |S|=53, |W|=25, C=8, COL=667800
 
     # # TODO: 🟨 Hard, and usually can not be solved
     "instance-5.txt",  # |P|=68, |S|=20, |W|=11, C=5, COL=74800C
@@ -73,9 +73,13 @@ INSTANCES = [
 ]
 
 PARAMETERS = {
-    "TOTAL_TIME_LIMIT": 360 * 2,
+    "OBJ_WEIGHT": (0, 0, 1),
+    "MAX_SPLIT_TASK_NUM": None,
+    "TOTAL_TIME_LIMIT": 360,
     "CP_TIME_LIMIT": 25,
     "LOCAL_BRANCHING_K_SET": range(1, 90, 4),
+    "CHANGE_OBJ_ITER": 50,
+    "CHANGE_OBJ_TIME": 30,
 }
 
 if __name__ == '__main__':

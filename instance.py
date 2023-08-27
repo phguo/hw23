@@ -340,31 +340,31 @@ if __name__ == '__main__':
         #         assert skill_efficiency is None or category_efficiency is None
         # print()
 
-        # import networkx as nx
-        # import matplotlib.pyplot as plt
-        # def topo_pos(G):
-        #     pos_dict = {}
-        #     for i, node_list in enumerate(nx.topological_generations(G)):
-        #         x_offset = len(node_list) / 2
-        #         y_offset = 0.1
-        #         for j, name in enumerate(node_list):
-        #             pos_dict[name] = (j - x_offset, -i + j * y_offset)
-        #     return pos_dict
-        # G = nx.DiGraph()
-        # G.add_nodes_from(list(I.processes.keys()))
-        # G.add_edges_from(I.immediate_precedence)
-        # pos = nx.planar_layout(G)
-        # # pos = nx.spring_layout(G)
-        # nx.draw_networkx(
-        #     G, pos=pos, node_color='lightblue', node_size=250, font_size=10, edge_color='k', arrows=True, alpha=0.8)
-        # ax = plt.gca()
-        # ax.margins(0.0)
-        # plt.axis("off")
-        # # plt.show()
+        import networkx as nx
+        import matplotlib.pyplot as plt
+        def topo_pos(G):
+            pos_dict = {}
+            for i, node_list in enumerate(nx.topological_generations(G)):
+                x_offset = len(node_list) / 2
+                y_offset = 0.1
+                for j, name in enumerate(node_list):
+                    pos_dict[name] = (j - x_offset, -i + j * y_offset)
+            return pos_dict
+        G = nx.DiGraph()
+        G.add_nodes_from(list(I.processes.keys()))
+        G.add_edges_from(I.immediate_precedence)
+        pos = nx.planar_layout(G)
+        # pos = nx.spring_layout(G)
+        nx.draw_networkx(
+            G, pos=pos, node_color='lightblue', node_size=250, font_size=10, edge_color='k', arrows=True, alpha=0.8)
+        ax = plt.gca()
+        ax.margins(0.0)
+        plt.axis("off")
+        plt.show()
         # plt.savefig(f"topo_{instance.split('.')[0]}.png")
-        # plt.close()
-        # print(I.task_tp_order_set)
-        # break
+        plt.close()
+        print(I.task_tp_order_set)
+        break
 
         # print("task_tp_order_set", I.task_tp_order_set)
         # print("task_tp_set", I.task_tp_order)

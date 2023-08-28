@@ -13,6 +13,7 @@ from instance import Instance
 from config import INSTANCES, PARAMETERS
 from solution import Solution
 from utility import load_json, save_json
+from UALB_CB2 import Solver as Solver2
 
 optimizer = pyo.SolverFactory('appsi_highs')
 optimizer.config.load_solution = False
@@ -793,9 +794,17 @@ class Solver(Instance):
         for split_task in [False, True]:
             if self.no_need_split and split_task:
                 break
+
             real_obj, worker_to_process, process_to_station, worker_to_station, cycle_num, process_map = self.solve(
                 split_task=split_task, obj_weight=PARAMETERS["OBJ_WEIGHT"],
-                cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=PARAMETERS["TOTAL_TIME_LIMIT"])
+                cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=PARAMETERS["UALB_CB_TIME_LIMIT"])
+
+            if not self.solved and self.no_need_split:
+                SS = Solver2(self.instance_data)
+                real_obj, worker_to_process, process_to_station, worker_to_station, cycle_num, process_map = SS.solve(
+                    cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=PARAMETERS["UALB_CB2_TIME_LIMIT"])
+                self.solved = SS.solved
+
             if self.solved:
                 solution = Solution(
                     self.instance_data,
@@ -826,7 +835,8 @@ if __name__ == '__main__':
             # from rich import print as pprint
             # pprint(output_json)
         except Exception as e:
-            raise e
+            print(e)
+            # raise e
 
         real_objectives[instance] = real_obj
         print(f"Ins. Runtime    : {time.time() - instance_start_time} seconds")

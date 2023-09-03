@@ -1,5 +1,5 @@
 # coding:utf-8
-# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023, all rights reserved.
+# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023. All rights reserved.
 
 from pyomo.opt import SolverStatus, TerminationCondition
 import pyomo.environ as pyo
@@ -496,8 +496,7 @@ class Solver(Instance):
 
 
 if __name__ == '__main__':
-    # instance_li = INSTANCES
-    instance_li = ["instance-5.txt"]
+    instance_li = INSTANCES
 
     for i, instance in enumerate(instance_li):
         try:

@@ -1,9 +1,9 @@
 # coding:utf-8
-# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023, all rights reserved.
+# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023. All rights reserved.
 
 
 INSTANCES = [
-    # # 🟩 Easy instances without splitting
+    # 🟩 Easy instances without splitting
     "instance-2.txt",  # |P|=45, |S|=20, |W|=8, C=5, COL=36000
     "instance-3.txt",  # |P|=45, |S|=20, |W|=8, C=5, COL=36000
     "instance-4.txt",  # |P|=45, |S|=20, |W|=8, C=5, COL=36000
@@ -34,17 +34,17 @@ INSTANCES = [
     "instance-21.txt",  # |P|=55, |S|=32, |W|=23, C=8, COL=323840C
     "instance-34.txt",  # |P|=58, |S|=32, |W|=23, C=8, COL=341504C
 
-    # 🟨 Hard, but can be solved occasionally
-    "instance-48.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
-    "instance-49.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080, obj max, k range(1, 90, 4)
-    "instance-45.txt",  # |P|=78, |S|=23, |W|=12, C=5, COL=107640, obj max, k range(1, 90, 4)
-    "instance-6.txt",  # |P|=63, |S|=20, |W|=11, C=5, COL=69300, obj 0, k range(1, 90, 4)
-    "instance-55.txt",  # |P|=69, |S|=24, |W|=16, C=8, COL=211968C, obj 0, k range(1, 90, 4)
-    "instance-33.txt",  # |P|=84, |S|=32, |W|=19, C=5, COL=255360C, obj 0, k range(1, 90, 4)
+    # # 🟨 Hard, but can be solved occasionally
+    "instance-48.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080
+    "instance-49.txt",  # |P|=66, |S|=23, |W|=12, C=5, COL=91080
+    "instance-45.txt",  # |P|=78, |S|=23, |W|=12, C=5, COL=107640
+    "instance-6.txt",  # |P|=63, |S|=20, |W|=11, C=5, COL=69300
+    "instance-55.txt",  # |P|=69, |S|=24, |W|=16, C=8, COL=211968C
+    "instance-33.txt",  # |P|=84, |S|=32, |W|=19, C=5, COL=255360C
     "instance-53.txt",  # |P|=56, |S|=24, |W|=16, C=5, COL=107520C
     "instance-19.txt",  # |P|=63, |S|=53, |W|=25, C=8, COL=667800
 
-    # # TODO: 🟨 Hard, and usually can not be solved
+    # 🟨 Hard, and usually can not be solved
     "instance-5.txt",  # |P|=68, |S|=20, |W|=11, C=5, COL=74800C
     "instance-38.txt",  # |P|=74, |S|=23, |W|=12, C=4, COL=81696C
     "instance-32.txt",  # |P|=61, |S|=24, |W|=15, C=4, COL=87840C
@@ -54,7 +54,7 @@ INSTANCES = [
     "instance-1.txt",  # |P|=83, |S|=20, |W|=14, C=5, COL=116200C
     "instance-25.txt",  # |P|=104, |S|=32, |W|=24, C=8, COL=638976C
 
-    # # 🟥 Infeasible instances without splitting
+    # 🟥 Infeasible instances without splitting
     "instance-7.txt",  # |P|=28, |S|=24, |W|=14, C=4, COL=37632C
     "instance-8.txt",  # |P|=28, |S|=24, |W|=14, C=4, COL=37632C
     "instance-9.txt",  # |P|=28, |S|=26, |W|=14, C=4, COL=40768C
@@ -62,7 +62,6 @@ INSTANCES = [
     "instance-36.txt",  # |P|=36, |S|=25, |W|=16, C=4, COL=57600C
     "instance-12.txt",  # |P|=39, |S|=24, |W|=17, C=4, COL=63648C
     "instance-11.txt",  # |P|=39, |S|=27, |W|=17, C=4, COL=71604C
-    "instance-18.txt",  # |P|=26, |S|=26, |W|=15, C=8, COL=81120C
     "instance-37.txt",  # |P|=28, |S|=26, |W|=15, C=8, COL=87360C
     "instance-56.txt",  # |P|=32, |S|=27, |W|=16, C=8, COL=110592C
     "instance-20.txt",  # |P|=54, |S|=32, |W|=22, C=8, COL=304128C
@@ -70,12 +69,12 @@ INSTANCES = [
     "instance-58.txt",  # |P|=63, |S|=55, |W|=28, C=8, COL=776160C, hard
     "instance-50.txt",  # |P|=50, |S|=20, |W|=9, C=5, COL=45000C, infeasible inherently
     "instance-54.txt",  # |P|=38, |S|=20, |W|=16, C=4, COL=48640C, infeasible (?)
+    "instance-18.txt",  # |P|=26, |S|=26, |W|=15, C=8, COL=81120C, infeasible (?)
 ]
 
 PARAMETERS = {
     "OBJ_WEIGHT": (0, 0, 1),
     "MAX_SPLIT_TASK_NUM": None,
-    # "TOTAL_TIME_LIMIT": 70,
     "UALB_CB_TIME_LIMIT": 70,
     "UALB_CB2_TIME_LIMIT": 360,
     "CP_TIME_LIMIT": 25,
@@ -87,5 +86,3 @@ PARAMETERS = {
 if __name__ == '__main__':
     for i in sorted(INSTANCES):
         print(i)
-
-# list(range(0, 31, 6))

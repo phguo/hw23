@@ -1,5 +1,5 @@
 # coding:utf-8
-# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023, all rights reserved.
+# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023. All rights reserved.
 
 import time
 from itertools import product
@@ -11,20 +11,10 @@ from ortools.sat.python import cp_model
 from instance import Instance
 from config import INSTANCES, PARAMETERS
 from solution import Solution
-from utility import load_json, save_json
+from utility import load_json
 
 optimizer = pyo.SolverFactory('appsi_highs')
 optimizer.config.load_solution = False
-
-
-# try:
-#     import socket
-#
-#     if socket.gethostname() == "VM-12-13-centos":
-#         optimizer = pyo.SolverFactory('gurobi')
-#         optimizer.options["MIPFocus"] = 1
-# except:
-#     pass
 
 
 class Solver(Instance):
@@ -44,11 +34,6 @@ class Solver(Instance):
 
         # Link w-p with w-s
         model.linking_cons = pyo.ConstraintList()
-        # for w, p, s in product(self.workers, self.processes, self.stations):
-        #     model.linking_cons.add(
-        #         expr=model.assign_worker_to_station_vars[w, s] ==
-        #              model.assign_worker_to_process_vars[w, p] * process_to_station[p, s])
-        # DEBUG
         for w, s in product(self.workers, self.stations):
             model.linking_cons.add(
                 expr=model.assign_worker_to_station_vars[w, s] <=
@@ -193,7 +178,6 @@ class Solver(Instance):
         for p, s in product(processes, self.stations):
             for s_ in __get_dummy_stations(s):
                 cp.AddImplication(cp_process_to_station[(p, s_)], cp_aux_process_to_station[(p, s)])
-            # DEBUG:
             cp.Add(cp_aux_process_to_station[(p, s)] <= sum(
                 cp_process_to_station[(p, s_)] for s_ in __get_dummy_stations(s)))
 
@@ -408,7 +392,7 @@ if __name__ == '__main__':
 
         S = Solver(load_json(f"instances/{instance}"))
         real_obj, worker_to_process, process_to_station, worker_to_station, cycle_num, process_map = (
-            S.solve(cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=PARAMETERS["TOTAL_TIME_LIMIT"]))
+            S.solve(cp_time_limit=PARAMETERS["CP_TIME_LIMIT"], total_time_limit=PARAMETERS["UALB_CB2_TIME_LIMIT"]))
         solution = Solution(
             S.instance_data,
             worker_to_process, process_to_station, worker_to_station, cycle_num, split_task=False)

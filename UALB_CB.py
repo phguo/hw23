@@ -1,5 +1,5 @@
 # coding:utf-8
-# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023, all rights reserved.
+# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023. All rights reserved.
 
 import time
 from copy import deepcopy
@@ -17,16 +17,6 @@ from UALB_CB2 import Solver as Solver2
 
 optimizer = pyo.SolverFactory('appsi_highs')
 optimizer.config.load_solution = False
-
-
-# try:
-#     import socket
-#
-#     if socket.gethostname() == "VM-12-13-centos":
-#         optimizer = pyo.SolverFactory('gurobi')
-#         optimizer.options["MIPFocus"] = 1
-# except:
-#     pass
 
 
 class Solver(Instance):
@@ -65,7 +55,7 @@ class Solver(Instance):
                 m.process_split_vars[p] >=
                 (sum(m.assign_worker_to_process_vars[w, p] for w in self.workers) - 1)
                 / (min(self.max_worker_per_oper, self.max_station_per_oper) - 1))
-            # HINT: stronger than required (?) -> but smaller decision space
+            # HINT: stronger than required
             # MAX_SPLIT_TASKS = self.max_split_num  # 3 is sufficient for at least feasible solutions
             MAX_SPLIT_TASKS = self.max_split_num if PARAMETERS["MAX_SPLIT_TASK_NUM"] is None else PARAMETERS[
                 "MAX_SPLIT_TASK_NUM"]
@@ -79,12 +69,7 @@ class Solver(Instance):
                 sum(m.assign_worker_to_process_vars[w, p] for w in self.workers) <= self.max_worker_per_oper)
         # Maximum worker per operation
         if split_task:
-            # HINT: stronger than required (?)
-            # model.max_worker_per_operation_cons = pyo.Constraint(
-            #     self.processes,
-            #     rule=lambda m, p:
-            #     sum(m.assign_worker_to_process_vars[w, p] for w in self.workers) <=
-            #     min(self.max_worker_per_oper, self.max_station_per_worker))
+            # HINT: stronger than required
             model.max_worker_per_operation_cons = pyo.Constraint(
                 self.processes,
                 rule=lambda m, p:
@@ -126,7 +111,6 @@ class Solver(Instance):
                         model.worker_skill_capable_b_cons.add(expr=model.assign_worker_to_process_vars[w, p] == 0)
 
         # Fix worker to processes
-        # ! TODO: process has fixed worker cannot be split
         model.fix_worker_cons = pyo.ConstraintList()
         for p, process in self.processes.items():
             if process.fixed_worker_code:
@@ -234,88 +218,14 @@ class Solver(Instance):
         #     expr=sum(model.abs_obj_vars[w1, w2] for w1, w2 in product(self.workers, self.workers)),
         #     sense=pyo.minimize)
 
-        # HINT: learn a weighted proxy objective, but upload later, tsangConvexFairnessMeasures2022
-        # HINT: Charnes-Cooper transformation for the original fractional objective
-
         # Initialize an empty ConstraintList for Combinatorial Benders (CB) cuts
         model.cb_cuts = pyo.ConstraintList()
         # Initialize an empty ConstraintList for Local Branching cuts
         model.local_branching_cuts = pyo.ConstraintList()
 
-        # DEBUG: invalid (e.g., for instance-31) & numerically unstable & incompatible with task splitting
-        # model = self.add_sub_relaxation_to_master(model)
-
-        return model
-
-    def add_sub_relaxation_to_master(self, model):
-
-        model.process_worker_id_vars = pyo.Var(
-            self.processes, domain=pyo.NonNegativeIntegers, initialize=0)
-        model.same_worker_vars = pyo.Var(
-            list(product(self.processes, self.processes)), domain=pyo.Binary, initialize=0)
-        model.delta_vars = pyo.Var(
-            list(product(self.processes, self.processes)), domain=pyo.Binary, initialize=0)
-        model.new_station_vars = pyo.Var(
-            self.processes, domain=pyo.Binary, initialize=0)
-
-        process_pre_set = {p: set() for p in self.processes}
-        for i, pros in enumerate(self.task_tp_order_set):
-            if i > 0:
-                for p in pros:
-                    process_pre_set[p] |= self.task_tp_order_set[i - 1]
-
-        process_pre_in = {p: [] for p in self.processes}
-        for i, pros in enumerate(self.task_tp_order_set):
-            pros_ = list(pros)
-            for j, p in enumerate(pros_):
-                if j > 0:
-                    process_pre_in[p] = pros_[:j]
-
-        model.worker_id_cons = pyo.Constraint(
-            self.processes,
-            rule=lambda m, p:
-            m.process_worker_id_vars[p] == sum(w * m.assign_worker_to_process_vars[w, p] for w in self.workers))
-        big_m = self.process_num * 100
-
-        # Enforce if a = b then c = 1, https://stackoverflow.com/a/68853298
-        model.same_id_a_cons = pyo.Constraint(
-            list(product(self.processes, self.processes)),
-            rule=lambda m, p1, p2:
-            m.process_worker_id_vars[p1] >=
-            m.process_worker_id_vars[p2] + 1 - big_m * m.delta_vars[p1, p2] - big_m * m.same_worker_vars[p1, p2])
-        model.same_id_b_cons = pyo.Constraint(
-            list(product(self.processes, self.processes)),
-            rule=lambda m, p1, p2:
-            m.process_worker_id_vars[p1] <=
-            m.process_worker_id_vars[p2] - 1 + big_m * (1 - m.delta_vars[p1, p2]) + big_m * m.same_worker_vars[p1, p2])
-        # Enforce if a != b then c = 0 <=> if c = 1 then a == b
-        model.same_id_d_cons = pyo.Constraint(
-            list(product(self.processes, self.processes)),
-            rule=lambda m, p1, p2:
-            big_m * (1 - m.same_worker_vars[p1, p2]) + m.process_worker_id_vars[p1] >= m.process_worker_id_vars[p2])
-        model.same_id_e_cons = pyo.Constraint(
-            list(product(self.processes, self.processes)),
-            rule=lambda m, p1, p2:
-            m.process_worker_id_vars[p1] <= m.process_worker_id_vars[p2] + big_m * (1 - m.same_worker_vars[p1, p2]))
-
-        model.new_station_cons = pyo.ConstraintList()
-        for p in self.processes:
-            if process_pre_set[p] != set():
-                model.new_station_cons.add(
-                    model.new_station_vars[p]
-                    + sum(model.same_worker_vars[p, p_] for p_ in process_pre_set[p])
-                    + sum(model.same_worker_vars[p, p_] for p_ in process_pre_in[p])
-                    >= 1)
-
-        model.new_station_ub_cons = pyo.Constraint(
-            expr=sum(model.new_station_vars[p] for p in self.processes) <=
-                 self.station_num + self.max_revisited_station_count)
-
         return model
 
     def make_cp_sub_problem(self, assign_worker_to_process_vals, split_task, cycle_count=None):
-        # TODO: fix ZeroDivisionError when allow splitting task, but the master solution does not split task
-
         # Extend stations by duplication according to max_cycle_count
         if cycle_count is None:
             cycle_count = self.max_cycle_count
@@ -327,8 +237,6 @@ class Solver(Instance):
 
         def __get_dummy_stations(s):
             return [a for a in ext_stations if (a - 1) % self.station_num + 1 == s]
-
-        # TODO: add constraint based on process_workers in _make_dummy_process() and FAQ 60
 
         if split_task:
             (processes, immediate_precedence, assign_worker_to_process, processes_required_machine,
@@ -357,8 +265,7 @@ class Solver(Instance):
             (m, s): cp.NewBoolVar('m_{}_s_{}'.format(m, s))
             for m, s in product(self.aux_machines, self.stations)}
 
-        # TODO: what is the actual task splitting rule? {30: [18, 22], 35: [14, 22, 9], 37: [21, 20]}
-        # HINT: stronger than required (?) Add the code bellow will not lower 4.1392
+        # HINT: stronger than required
         if split_task:
             for p, s in product(process_map.keys(), ext_stations):
                 for p_ in set(processes.keys()) - {p}:
@@ -381,10 +288,6 @@ class Solver(Instance):
                 assign_worker_to_process[w, p] * cp_aux_process_to_station[(p, s)],
                 cp_worker_to_station[(w, s)])
 
-        # Each worker must be assigned to at least one station
-        for w in self.workers:
-            cp.Add(sum(cp_worker_to_station[(w, s)] for s in self.stations) >= 1)
-
         """
         Process
         """
@@ -397,15 +300,7 @@ class Solver(Instance):
             cp.Add(sum(s * cp_process_to_station[(p1, s)] for s in ext_stations) <=
                    sum(s * cp_process_to_station[(p2, s)] for s in ext_stations))
 
-        """
-        Worker
-        """
-        # Maximum number of stations for each worker
-        for w in self.workers:
-            cp.Add(sum(cp_worker_to_station[(w, s)] for s in self.stations) <= self.max_station_per_worker)
-
         # Fix station to processes
-        # ! TODO: process that has fixed station cannot be split
         for p, process in processes.items():
             if process.fixed_station_code:
                 s = self.station_code_to_id[process.fixed_station_code]
@@ -413,6 +308,17 @@ class Solver(Instance):
                 for s_ in set(self.stations.keys()) - {s}:
                     for s__ in __get_dummy_stations(s_):
                         cp.Add(cp_process_to_station[(p, s__)] == 0)
+
+        """
+        Worker
+        """
+        # Each worker must be assigned to at least one station
+        for w in self.workers:
+            cp.Add(sum(cp_worker_to_station[(w, s)] for s in self.stations) >= 1)
+
+        # Maximum number of stations for each worker
+        for w in self.workers:
+            cp.Add(sum(cp_worker_to_station[(w, s)] for s in self.stations) <= self.max_station_per_worker)
 
         """
         Machine
@@ -423,7 +329,6 @@ class Solver(Instance):
                    cp_machine_to_station[(processes_required_machine[p], (s - 1) % self.station_num + 1)])
 
         # Maximum number of machines in each station
-        # Fixed: add "if v.is_machine_needed" after Q&A 0819
         for s in self.stations:
             cp.Add(
                 sum(cp_machine_to_station[(k, s)] for k, v in self.aux_machines.items() if v.is_machine_needed)
@@ -477,16 +382,6 @@ class Solver(Instance):
         cp.Add(sum(cp_revisit[s] for s in self.stations) <= self.max_revisited_station_count)
 
         """
-        Symmetry breaking
-        """
-        # HINT: if a station do not have fixed machine, it should not be skipped
-        # HINT: there are cases that station 100 is used, but stations corresponds to it but before it are not used
-        # cp_station_can_be_used = {s: cp.NewBoolVar(name=f"station_can_be_used_{s}") for s in ext_stations}
-        # cp_station_can_be_skipped = {s: cp.NewBoolVar(name=f"station_can_be_skipped_{s}") for s in ext_stations}
-        # for c, s in product(range(cycle_count), self.stations):
-        #     pass
-
-        """
         Objective
         """
         cp.Minimize(0)
@@ -499,16 +394,6 @@ class Solver(Instance):
             if worker_to_process[w, p] == 1:
                 process_workers[p].append(w)
 
-        # required_station_num = 0
-        # worker_set_before = set()
-        # for i, pros in enumerate(self.task_tp_order_set):
-        #     worker_set = list(set(w for p in pros for w in process_workers[p]))
-        #     for j, w in enumerate(worker_set):
-        #         if w not in worker_set_before and w not in worker_set[:j]:
-        #             required_station_num += 1
-        #     worker_set_before = worker_set
-
-        # 0826 TODO: stronger WP-SET -> two WP-SET, one based on task_tp_order_set and the other based on its reverse
         required_station_num = 0
         worker_set_before = set()
         p_set = set()
@@ -548,10 +433,6 @@ class Solver(Instance):
             + sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one)
             >= 1)
 
-        # 0826 TODO: stronger CB cuts for non split problems
-        # model.cb_cuts.add(
-        #     expr=sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one) >= 1)
-
         return model
 
     def __add_local_branching_cut(self, model, worker_to_process, left_or_right, k):
@@ -571,13 +452,6 @@ class Solver(Instance):
                 sum(model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_zero) +
                 sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one)
                 >= k + 1)
-
-            # 0826 TODO: diversification searching using black box optimizer
-            # model.local_branching_cuts.add(
-            #     expr=
-            #     sum(model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_zero) +
-            #     sum(1 - model.assign_worker_to_process_vars[w, p] for w, p in worker_to_process_one)
-            #     <= k + 10)
 
         return model
 
@@ -664,7 +538,6 @@ class Solver(Instance):
 
         while time.time() - start_time <= total_time_limit and not sub_status == cp_model.OPTIMAL:
 
-            # 0827 TODO:change objective, but preserve CB cuts
             if (iter > PARAMETERS["CHANGE_OBJ_ITER"]
                 or time.time() - start_time > PARAMETERS["CHANGE_OBJ_TIME"]) and not self.obj_changed:
                 model.del_component(model.objective)
@@ -789,8 +662,6 @@ class Solver(Instance):
         output_json = None
         real_obj = 10
 
-        # for split_task, (obj_weight, limit) in product([False, True], [((0, 0, 1), 60), ((1, 0, 0), 360)]):
-        # 0827 TODO:change objective, but preserve CB cuts
         for split_task in [False, True]:
             if self.no_need_split and split_task:
                 break
@@ -817,7 +688,6 @@ class Solver(Instance):
 
 if __name__ == '__main__':
     instance_li = INSTANCES
-    # instance_li = ["instance-2.txt"]
 
     start_time = time.time()
     real_objectives = {}

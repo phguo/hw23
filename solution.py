@@ -1,11 +1,9 @@
 # coding:utf-8
-# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023, all rights reserved.
+# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023. All rights reserved.
 
 from itertools import product
 
 from instance import Instance
-from config import INSTANCES
-from utility import load_json
 
 CHECK_VALIDITY = False
 
@@ -174,81 +172,20 @@ class Solution(Instance):
                         f"Fixed machine [{k}] is assigned to a non predefined station [{s}]."
         return True
 
-    # def split_process_use_single_station(self):
-    #     # HINT: stronger than required (?)
-    #     split_process = set(self.process_map.keys())
-    #     split_process_station = {
-    #         p: (s - 1) % self.station_num + 1
-    #         for p, s in self.process_to_station if self.process_to_station[p, s] == 1 and p in split_process}
-    #     process_station = {
-    #         p: (s - 1) % self.station_num + 1
-    #         for p, s in self.process_to_station if self.process_to_station[p, s] == 1}
-    #
-    #     for p, s in split_process_station.items():
-    #         for p_, s_ in process_station.items():
-    #             if p != p_ and s == s_:
-    #                 assert False, f"Split process [{p}] and process [{p_}] are assigned to the same station [{s}]."
-    #     return True
+    def split_process_use_single_station(self):
+        split_process = set(self.process_map.keys())
+        split_process_station = {
+            p: (s - 1) % self.station_num + 1
+            for p, s in self.process_to_station if self.process_to_station[p, s] == 1 and p in split_process}
+        process_station = {
+            p: (s - 1) % self.station_num + 1
+            for p, s in self.process_to_station if self.process_to_station[p, s] == 1}
 
-    # def write_solution(self):
-    #     self.process_station = {p: s for p, s in self.process_to_station if self.process_to_station[p, s] == 1}
-    #     self.station_worker = {s: w for w, s in self.worker_to_station if self.worker_to_station[w, s] == 1}
-    #
-    #     def __make_process_order():
-    #         process_order = []
-    #         for c in range(self.cycle_num):
-    #             for s in self.stations:
-    #                 station_id = s + c * self.station_num
-    #                 for p in self.task_tp_order:
-    #                     if self.process_station[p] == station_id:
-    #                         process_order += [p]
-    #         return process_order
-    #
-    #     process_order = __make_process_order()
-    #
-    #     # Initialize dispatch_results
-    #     dispatch_results = []
-    #
-    #     # Station worker
-    #     for s in self.stations:
-    #         station_result = dict()
-    #         station_result["station_code"] = self.stations[s].station_code
-    #         station_result["worker_code"] = ''
-    #         station_result["operation_list"] = []
-    #         if s in self.station_worker:
-    #             station_result["worker_code"] = self.workers[self.station_worker[s]].worker_code
-    #         dispatch_results.append(station_result)
-    #
-    #     # Station operation
-    #     process_operation_number = {p: -1 for p in self.processes}
-    #     for p, c, s in product(process_order, range(self.cycle_num), self.stations):
-    #         station_result = dispatch_results[s - 1]
-    #         if self.process_to_station[p, s + c * self.station_num]:
-    #             station_operation = {
-    #                 "operation": self.processes[p].operation,
-    #                 "operation_number": process_order.index(p) + 1,
-    #                 # "station_id": s + c * self.station_num,
-    #             }
-    #             process_operation_number[p] = process_order.index(p) + 1
-    #             station_result["operation_list"].append(station_operation)
-    #
-    #     # Assign dummy process
-    #     if self.split_task:
-    #         for p, c, s in product(self.process_map, range(self.cycle_num), self.stations):
-    #             if p not in process_order:
-    #                 station_result = dispatch_results[s - 1]
-    #                 if self.process_to_station[p, s + c * self.station_num]:
-    #                     station_operation = {
-    #                         "operation": self.processes[p].operation,
-    #                         "operation_number": process_operation_number[self.process_map[p]],
-    #                         # "station_id": s + c * self.station_num,
-    #                     }
-    #                     station_result["operation_list"].append(station_operation)
-    #
-    #     # Clean empty station
-    #     dispatch_results = [a for a in dispatch_results if not (a["operation_list"] == [] or a["worker_code"] == '')]
-    #
-    #     return {"dispatch_results": dispatch_results}
+        for p, s in split_process_station.items():
+            for p_, s_ in process_station.items():
+                if p != p_ and s == s_:
+                    assert False, f"Split process [{p}] and process [{p_}] are assigned to the same station [{s}]."
+        return True
 
     def write_solution(self):
         # obtain station operation and worker

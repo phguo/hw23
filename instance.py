@@ -1,8 +1,7 @@
 # coding:utf-8
-# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023, all rights reserved.
+# By Penghui Guo (https://guo.ph) for "苏州园区“华为云杯”2023人工智能应用创新大赛（创客）" 2023. All rights reserved.
 
 
-import os
 from copy import deepcopy
 from itertools import product
 
@@ -255,9 +254,6 @@ class Instance(object):
             process_workers[p].append(w)
         processes_with_multiple_workers = {k: v for k, v in process_workers.items() if len(v) > 1}
 
-        # print(process_workers)
-        # print(processes_with_multiple_workers)
-
         dummy_processes = deepcopy(self.processes)
         dummy_immediate_precedence = deepcopy(self.immediate_precedence)
         dummy_assign_worker_to_process = deepcopy(assign_worker_to_process_vals)
@@ -288,97 +284,13 @@ class Instance(object):
             if (w, p) not in dummy_assign_worker_to_process:
                 dummy_assign_worker_to_process[w, p] = 0
 
-        # print(list(self.processes.keys()))
-        # print(list(dummy_processes.keys()))
-        # print(dummy_process_map)
-        # print(list(k for k, v in assign_worker_to_process_vals.items() if v == 1))
-        # print(list(k for k, v in dummy_assign_worker_to_process.items() if v == 1))
-
         return (dummy_processes, dummy_immediate_precedence, dummy_assign_worker_to_process,
                 dummy_processes_required_machine, dummy_process_map)
 
 
 if __name__ == '__main__':
     instance_li = INSTANCES
-    # instance_li = ["instance-11.txt"]
 
     for instance in instance_li:
         print("Loading instance:", instance)
         I = Instance(load_json(f"./instances/{instance}"))
-        # operation_time_li = [p.standard_oper_time for p in I.processes.values()]
-        # print(instance, min(operation_time_li), max(operation_time_li), sum(operation_time_li) / len(operation_time_li))
-
-        # print("max_revisits =", I.max_revisited_station_count, "| max_cycle =", I.max_cycle_count)
-        # print("mono_machines", I.mono_aux_machines)
-        # stations_fixed_machines = {k: v for k, v in I.stations_fixed_machines.items() if v}
-        # print("stations_fixed_machines", stations_fixed_machines)
-        # processes_required_mono_machine = {k: v for k, v in I.processes_required_machine.items() if
-        #                                    v in I.mono_aux_machines}
-        # print("processes_required_mono_machine", processes_required_mono_machine)
-        # print(I.immediate_precedence)
-        # print(I.task_tp_order)
-        # print(I.volatility_rate)
-        # print()
-
-        # print([v.is_machine_needed for k, v in I.aux_machines.items()])
-        # print(I.max_worker_per_oper, I.max_split_num)
-
-        # # Print skill & skill category efficiency
-        # for w, p in product(I.workers, I.processes):
-        #     skill_efficiency = None
-        #     category_efficiency = None
-        #     if p in I.workers_capble_pro[w]:
-        #         for skill in I.workers[w].operation_skill_list:
-        #             if skill["operation_code"] == I.processes[p].operation:
-        #                 skill_efficiency = skill["efficiency"]
-        #     elif p in I.workers_category_capable_pro[w]:
-        #         for category in I.workers[w].operation_category_skill_list:
-        #             if category["operation_category"] == I.processes[p].operation_category:
-        #                 category_efficiency = category["efficiency"]
-        #     if skill_efficiency or category_efficiency:
-        #         print(w, p, skill_efficiency, category_efficiency)
-        #         assert skill_efficiency is None or category_efficiency is None
-        # print()
-
-        import networkx as nx
-        import matplotlib.pyplot as plt
-        def topo_pos(G):
-            pos_dict = {}
-            for i, node_list in enumerate(nx.topological_generations(G)):
-                x_offset = len(node_list) / 2
-                y_offset = 0.1
-                for j, name in enumerate(node_list):
-                    pos_dict[name] = (j - x_offset, -i + j * y_offset)
-            return pos_dict
-        G = nx.DiGraph()
-        G.add_nodes_from(list(I.processes.keys()))
-        G.add_edges_from(I.immediate_precedence)
-        pos = nx.planar_layout(G)
-        # pos = nx.spring_layout(G)
-        nx.draw_networkx(
-            G, pos=pos, node_color='lightblue', node_size=250, font_size=10, edge_color='k', arrows=True, alpha=0.8)
-        ax = plt.gca()
-        ax.margins(0.0)
-        plt.axis("off")
-        plt.show()
-        # plt.savefig(f"topo_{instance.split('.')[0]}.png")
-        plt.close()
-        print(I.task_tp_order_set)
-        break
-
-        # print("task_tp_order_set", I.task_tp_order_set)
-        # print("task_tp_set", I.task_tp_order)
-        # print(
-        #     "max_worker_per_oper:", I.max_worker_per_oper,
-        #     "max_station_per_oper:", I.max_station_per_oper,
-        #     I.max_worker_per_oper > I.max_station_per_oper,
-        #     # "max_split_num:", I.max_split_num,
-        #     # "allow_split:", I.allow_split
-        # )
-
-        # print([(m.machine_type, m.is_movable) for m in I.aux_machines.values()])
-        # print([s.curr_machine_list for s in I.stations.values()])
-
-        print(I.task_tp_order_set)
-
-        print()

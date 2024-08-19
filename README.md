@@ -162,7 +162,8 @@ print(f"Total Runtime   : {time.time() - start_time} seconds")
 2. Benders, J. F. (1962). Partitioning procedures for solving mixed-variables programming problems. *Numerische Mathematik*, *4*(1), 238–252. https://doi.org/10.1007/BF01386316
 3. Codato, G., & Fischetti, M. (2006). Combinatorial Benders’ cuts for mixed-integer linear programming. *Operations Research*, *54*(4), 756–766. https://doi.org/10.1287/opre.1060.0286
 4. Hooker, J. N., & Ottosson, G. (2003). Logic-based Benders decomposition. *Mathematical Programming*, *96*(1), 33–60. https://doi.org/10.1007/s10107-003-0375-9
-5. Rahmaniani, R., Crainic, T. G., Gendreau, M., & Rei, W. (2017). The Benders decomposition algorithm: A literature review. *European Journal of Operational Research*, *259*(3), 801–817. https://doi.org/10.1016/j.ejor.2016.12.005
-6. Fischetti, M., & Lodi, A. (2003). Local branching. *Mathematical Programming*, *98*(1), 23–47. https://doi.org/10.1007/s10107-003-0395-5
-7. Rei, W., Cordeau, J.-F., Gendreau, M., & Soriano, P. (2009). Accelerating Benders Decomposition by Local Branching. *INFORMS Journal on Computing*, *21*(2), 333–345. https://doi.org/10.1287/ijoc.1080.0296
-8. Tsang, M. Y., & Shehadeh, K. S. (2022). *Convex Fairness Measures: Theory and Optimization* (arXiv:2211.13427). arXiv. http://arxiv.org/abs/2211.13427
+5. Jain, V., & Grossmann, I. E. (2001). Algorithms for Hybrid MILP/CP Models for a Class of Optimization Problems. *INFORMS Journal on Computing*, *13*(4), 258–276. https://doi.org/10.1287/ijoc.13.4.258.9733
+6. Rahmaniani, R., Crainic, T. G., Gendreau, M., & Rei, W. (2017). The Benders decomposition algorithm: A literature review. *European Journal of Operational Research*, *259*(3), 801–817. https://doi.org/10.1016/j.ejor.2016.12.005
+7. Fischetti, M., & Lodi, A. (2003). Local branching. *Mathematical Programming*, *98*(1), 23–47. https://doi.org/10.1007/s10107-003-0395-5
+8. Rei, W., Cordeau, J.-F., Gendreau, M., & Soriano, P. (2009). Accelerating Benders Decomposition by Local Branching. *INFORMS Journal on Computing*, *21*(2), 333–345. https://doi.org/10.1287/ijoc.1080.0296
+9. Tsang, M. Y., & Shehadeh, K. S. (2022). *Convex Fairness Measures: Theory and Optimization* (arXiv:2211.13427). arXiv. http://arxiv.org/abs/2211.13427
